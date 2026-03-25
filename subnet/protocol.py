@@ -1,16 +1,19 @@
-import typing
-import bittensor as bt
+from bittensor import Synapse
 
 
-class RedTeamSynapse(bt.Synapse):
-    target_description: str = ""
-    attack_prompts: typing.Optional[typing.List[str]] = None
+class RoleDiscoverySynapse(Synapse):
+    # Validator sends to discover miner role; miner fills `role` with "red" or "blue"
+    role: str | None = None
 
 
-class BlueTeamSynapse(bt.Synapse):
-    prompts: typing.List[str] = []
-    classifications: typing.Optional[typing.List[str]] = None
+class RedTeamSynapse(Synapse):
+    # Validator sends to red miner to generate injection prompts
+    system_prompt: str
+    target_category: str
+    prompts: list[str] | None = None
 
 
-class FlaggedPromptsSynapse(bt.Synapse):
-    flagged_data: typing.Optional[str] = None
+class BlueTeamSynapse(Synapse):
+    # Validator sends to blue miner for classification of prompts
+    prompts: list[str]
+    classifications: list[str] | None = None
