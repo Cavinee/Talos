@@ -20,10 +20,15 @@ class LocalnetNetworkPropagationTests(unittest.TestCase):
         )
 
     def test_register_and_stake_uses_same_network_for_programmatic_staking(self):
-        content = (SCRIPTS_DIR / "06_register_and_stake.sh").read_text()
+        staking_script = (SCRIPTS_DIR / "07_stake_validators.sh").read_text()
+        wrapper = (SCRIPTS_DIR / "06_register_and_stake.sh").read_text()
 
-        self.assertIn('NETWORK="${NETWORK}"', content)
-        self.assertNotIn("NETWORK=local", content)
+        self.assertIn('NETWORK="${NETWORK:-ws://127.0.0.1:9945}"', staking_script)
+        self.assertIn('NETUID="${NETUID:-2}"', staking_script)
+        self.assertIn('VALIDATOR_STAKE_AMOUNT="${VALIDATOR_STAKE_AMOUNT:-100}"', staking_script)
+        self.assertIn('NETWORK="${NETWORK}"', staking_script)
+        self.assertNotIn("NETWORK=local", staking_script)
+        self.assertIn('"${SCRIPT_DIR}/07_stake_validators.sh"', wrapper)
 
 
 if __name__ == "__main__":

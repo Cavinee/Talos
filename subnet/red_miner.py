@@ -9,7 +9,8 @@ from bittensor.utils.btlogging import logging
 from bittensor_wallet import Wallet
 
 from protocol import RoleDiscoverySynapse, RedTeamSynapse
-from llm_client import LLMClient
+# from llm_client import LLMClient  # LLM implementation (commented out for mock testing)
+from mock_data import RED_MINER_SKILLS, get_mock_red_prompts
 
 
 class RedMiner:
@@ -23,7 +24,8 @@ class RedMiner:
         self.config = self.get_config()
         self.setup_logging()
         self.setup_bittensor_objects()
-        self.llm = LLMClient()
+        # self.llm = LLMClient()  # LLM implementation (commented out for mock testing)
+        self.skill_level = RED_MINER_SKILLS.get(self.config.miner_index, 0.5)
 
     def get_config(self):
         # Set up the configuration parser
@@ -31,6 +33,10 @@ class RedMiner:
         # Adds override arguments for network and netuid.
         parser.add_argument(
             "--netuid", type=int, default=1, help="The chain subnet uid."
+        )
+        # Adds miner index for skill level lookup.
+        parser.add_argument(
+            "--miner-index", type=int, default=1, help="Miner index (1-5) for skill level lookup."
         )
         # Adds subtensor specific arguments.
         Subtensor.add_args(parser)
@@ -112,8 +118,12 @@ class RedMiner:
         return synapse
 
     def generate_prompts(self, synapse: RedTeamSynapse) -> RedTeamSynapse:
-        prompts = self.llm.generate_adversarial_prompts(
-            system_prompt=synapse.system_prompt,
+        # prompts = self.llm.generate_adversarial_prompts(  # LLM implementation (commented out for mock testing)
+        #     system_prompt=synapse.system_prompt,
+        #     category=synapse.target_category,
+        # )
+        prompts = get_mock_red_prompts(
+            skill_level=self.skill_level,
             category=synapse.target_category,
         )
         synapse.prompts = prompts
