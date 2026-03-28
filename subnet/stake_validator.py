@@ -14,8 +14,9 @@ NETUID = int(os.environ.get("NETUID", 2))
 NETWORK = os.environ.get("NETWORK", "local")
 STAKE_PER_ROUND = int(os.environ.get("STAKE_PER_ROUND", 100))
 TARGET_ROUNDS = int(os.environ.get("STAKE_ROUNDS", 30))
+WALLET_NAME = os.environ.get("WALLET_NAME", "test-validator")
 
-wallet = Wallet(name="test-validator")
+wallet = Wallet(name=WALLET_NAME)
 subtensor = bt.Subtensor(network=NETWORK)
 
 metagraph = subtensor.metagraph(netuid=NETUID)
