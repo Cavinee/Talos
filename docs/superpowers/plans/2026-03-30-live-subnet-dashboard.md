@@ -34,7 +34,7 @@
 
 **Files:** All files from commit `60c83d0`
 
-- [ ] **Step 1: Cherry-pick from the feature branch**
+- [x] **Step 1: Cherry-pick from the feature branch**
 
 ```bash
 cd /Users/cavine/Code/Talos
@@ -43,7 +43,7 @@ git cherry-pick 60c83d0
 
 Expected: clean apply. If conflicts arise on `validator.py` or `README.md`, accept the feature-branch version (`git checkout --theirs <file> && git add <file>`).
 
-- [ ] **Step 2: Run the localnet script tests**
+- [x] **Step 2: Run the localnet script tests**
 
 ```bash
 cd /Users/cavine/Code/Talos/subnet
@@ -52,7 +52,7 @@ python -m pytest tests/test_localnet_scripts.py tests/test_register_subnet_neuro
 
 Expected: all pass.
 
-- [ ] **Step 3: Commit if cherry-pick left it unstaged**
+- [x] **Step 3: Commit if cherry-pick left it unstaged**
 
 If the cherry-pick produced a clean commit already, skip this step. Otherwise:
 
@@ -71,7 +71,7 @@ git commit -m "feat: scale localnet to 3 validators and 10 miners"
 
 ### Step 1: Write the failing tests
 
-- [ ] Create `subnet/tests/test_validator_output.py`:
+- [x] Create `subnet/tests/test_validator_output.py`:
 
 ```python
 import json
@@ -241,7 +241,7 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run to confirm the tests fail**
+- [x] **Step 2: Run to confirm the tests fail**
 
 ```bash
 cd /Users/cavine/Code/Talos/subnet
@@ -250,7 +250,7 @@ python -m pytest tests/test_validator_output.py -v
 
 Expected: `AttributeError: module 'validator' has no attribute 'build_threat_entry'`
 
-- [ ] **Step 3: Add imports and constants to `validator.py`**
+- [x] **Step 3: Add imports and constants to `validator.py`**
 
 At the top of `subnet/validator.py`, after the existing imports, add:
 
@@ -269,7 +269,7 @@ CATEGORY_TO_ATTACK_TYPE: dict[str, str] = {
 }
 ```
 
-- [ ] **Step 4: Add `build_threat_entry` and `append_threat_entries` functions to `validator.py`**
+- [x] **Step 4: Add `build_threat_entry` and `append_threat_entries` functions to `validator.py`**
 
 Add these two functions after the existing `append_dangerous_entries` function:
 
@@ -331,7 +331,7 @@ def append_threat_entries(json_path: str | Path, entries: list[dict]) -> None:
             fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 ```
 
-- [ ] **Step 5: Extend `run_epoch` to collect and write threat entries**
+- [x] **Step 5: Extend `run_epoch` to collect and write threat entries**
 
 In `run_epoch`, find the inner `for prompt, cls in zip(...)` loop. Replace the loop body so it also builds threat entries. The full updated loop body (replacing everything from `is_unsafe = mock_judge_output(prompt)` through the `if breach_detected: break`) should be:
 
@@ -383,7 +383,7 @@ After `append_dangerous_entries(json_path, dangerous_entries)`, add:
             logging.info(f"Appended {len(threat_entries)} threat entries to threat_stream.json")
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 ```bash
 cd /Users/cavine/Code/Talos/subnet
@@ -392,7 +392,7 @@ python -m pytest tests/test_validator_output.py -v
 
 Expected: all 8 tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/cavine/Code/Talos
