@@ -3,6 +3,11 @@ import subprocess
 import unittest
 from tempfile import TemporaryDirectory
 from pathlib import Path
+import os
+import shutil
+import stat
+import subprocess
+import tempfile
 
 
 SUBNET_DIR = Path(__file__).resolve().parents[1]
@@ -226,6 +231,71 @@ printf '%s\\n' staking >> "${LOG_FILE}"
         self.assertIn("./scripts/localnet/10_run_all.sh", readme)
         self.assertIn("commit-reveal", readme)
         self.assertNotIn("/Users/cavine/Code/Talos", readme)
+
+    def test_worktree_launch_scripts_fall_back_when_python_bin_points_to_missing_venv(self):
+        script_names = [
+            "07_run_red_miner.sh",
+            "08_run_blue_miner.sh",
+            "09_run_validator.sh",
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "Talos"
+            primary_subnet_dir = repo_root / "subnet"
+            worktree_subnet_dir = repo_root / ".worktrees" / "feature" / "subnet"
+            worktree_scripts_dir = worktree_subnet_dir / "scripts" / "localnet"
+            shared_python = primary_subnet_dir / "btsdk_venv" / "bin" / "python"
+            output_path = repo_root / "resolved-python.txt"
+
+            worktree_scripts_dir.mkdir(parents=True)
+            shared_python.parent.mkdir(parents=True)
+
+            shared_python.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s\\n' \"$0\" > \"$TEST_OUTPUT\"\n"
+                "printf '%s\\n' \"$@\" >> \"$TEST_OUTPUT\"\n"
+            )
+            shared_python.chmod(shared_python.stat().st_mode | stat.S_IEXEC)
+
+            script_targets = {
+                "07_run_red_miner.sh": "red_miner.py",
+                "08_run_blue_miner.sh": "blue_miner.py",
+                "09_run_validator.sh": "validator.py",
+            }
+
+            for script_name in script_names:
+                shutil.copy2(SCRIPTS_DIR / script_name, worktree_scripts_dir / script_name)
+                (worktree_subnet_dir / script_targets[script_name]).write_text(
+                    "print('placeholder')\n"
+                )
+
+            for script_name, entrypoint in script_targets.items():
+                with self.subTest(script=script_name):
+                    output_path.unlink(missing_ok=True)
+                    invalid_python = (
+                        worktree_subnet_dir / "btsdk_venv" / "bin" / "python"
+                    )
+                    env = os.environ.copy()
+                    env["PYTHON_BIN"] = str(invalid_python)
+                    env["TEST_OUTPUT"] = str(output_path)
+
+                    completed = subprocess.run(
+                        ["bash", str(worktree_scripts_dir / script_name)],
+                        check=False,
+                        cwd=repo_root / ".worktrees" / "feature",
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                    )
+
+                    self.assertEqual(
+                        completed.returncode,
+                        0,
+                        msg=f"{script_name} should recover from a stale PYTHON_BIN override. stderr={completed.stderr}",
+                    )
+                    resolved_output = output_path.read_text()
+                    self.assertIn(str(shared_python), resolved_output)
+                    self.assertIn(entrypoint, resolved_output)
 
 
 if __name__ == "__main__":
