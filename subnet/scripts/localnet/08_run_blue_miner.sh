@@ -81,6 +81,9 @@ PYTHON_BIN="$(resolve_python_bin)"
 # Compute port: 8095 + INDEX (8096-8100)
 PORT=$((8095 + INDEX))
 
+# Compute port: 8095 + INDEX (8096-8100)
+PORT=$((8095 + INDEX))
+
 "${PYTHON_BIN}" blue_miner.py \
   --wallet.name test-blue-miner-${INDEX} \
   --wallet.hotkey default \

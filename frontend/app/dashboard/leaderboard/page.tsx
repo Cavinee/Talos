@@ -1,70 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
 import FactionTable from "@/components/leaderboard/FactionTable";
-import type { CampaignRankings, MinerRanking } from "@/lib/campaign/rankings-parser";
+import { useLiveData } from "@/hooks/useLiveData";
+import type { RedMiner, BlueMiner } from "@/data/mock";
 
 interface RankingsResponse {
-  rankings: CampaignRankings;
+  red: RedMiner[];
+  blue: BlueMiner[];
+  lastUpdated: string | null;
 }
 
-const DEFAULT_POLL_INTERVAL_MS = 3000;
+const EMPTY: RankingsResponse = { red: [], blue: [], lastUpdated: null };
 
 export default function LeaderboardPage() {
-  const [red, setRed] = useState<MinerRanking[]>([]);
-  const [blue, setBlue] = useState<MinerRanking[]>([]);
-  const mountedRef = useRef(true);
-  const timerRef = useRef<number | null>(null);
-  const fetchRef = useRef<() => Promise<void>>(async () => {});
-  const pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
-
-  async function fetchRankings() {
-    try {
-      const response = await fetch("/api/campaign/rankings");
-      const payload = (await response.json()) as RankingsResponse;
-
-      if (!mountedRef.current) {
-        return;
-      }
-
-      setRed(payload.rankings.red ?? []);
-      setBlue(payload.rankings.blue ?? []);
-    } catch {
-      // silently ignore fetch errors — stale data stays displayed
-    }
-  }
-
-  fetchRef.current = fetchRankings;
-
-  useEffect(() => {
-    mountedRef.current = true;
-    void fetchRef.current();
-
-    timerRef.current = window.setInterval(() => {
-      void fetchRef.current();
-    }, pollIntervalMs);
-
-    return () => {
-      mountedRef.current = false;
-      if (timerRef.current !== null) {
-        window.clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [pollIntervalMs]);
-
-  const isEmpty = red.length === 0 && blue.length === 0;
-
-  if (isEmpty) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-text-secondary text-sm">
-          No rankings yet — waiting for validators to complete an epoch.
-        </p>
-      </div>
-    );
-  }
+  const { data } = useLiveData<RankingsResponse>("/api/rankings", EMPTY, 10000);
 
   return (
     <div className="flex gap-6">
@@ -78,12 +27,7 @@ export default function LeaderboardPage() {
             { key: "breachRate", label: "Breach Rate" },
             { key: "weight", label: "Weight" },
           ]}
-          data={red.map((r) => ({
-            rank: r.rank,
-            uid: r.uid,
-            breachRate: (r.avgScore * 100).toFixed(1) + "%",
-            weight: (r.normalizedWeight * 100).toFixed(1) + "%",
-          }))}
+          data={data.red}
         />
       </div>
       <div className="flex-1">
@@ -96,12 +40,7 @@ export default function LeaderboardPage() {
             { key: "f1Score", label: "F1 Score" },
             { key: "weight", label: "Weight" },
           ]}
-          data={blue.map((r) => ({
-            rank: r.rank,
-            uid: r.uid,
-            f1Score: (r.avgScore * 100).toFixed(1) + "%",
-            weight: (r.normalizedWeight * 100).toFixed(1) + "%",
-          }))}
+          data={data.blue}
         />
       </div>
     </div>

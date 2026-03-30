@@ -81,6 +81,9 @@ PYTHON_BIN="$(resolve_python_bin)"
 # Compute port: 8090 + INDEX (8091-8095)
 PORT=$((8090 + INDEX))
 
+# Compute port: 8090 + INDEX (8091-8095)
+PORT=$((8090 + INDEX))
+
 "${PYTHON_BIN}" red_miner.py \
   --wallet.name test-red-miner-${INDEX} \
   --wallet.hotkey default \

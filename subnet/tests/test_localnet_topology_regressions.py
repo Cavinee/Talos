@@ -343,7 +343,7 @@ class LocalnetTopologyRegressionTests(unittest.TestCase):
         validator.minimum_blue_miners = 5
         validator.role_discovery_max_attempts = 2
         validator.role_discovery_poll_interval = 0
-        validator.run_epoch = MagicMock(return_value=(1.0, 1.0))
+        validator.run_epoch = MagicMock(return_value=(1.0, 1.0, 1.0, 1.0))
         validator.discover_roles = MagicMock(
             side_effect=[
                 {0: "red", 5: "blue"},
@@ -395,7 +395,7 @@ class LocalnetTopologyRegressionTests(unittest.TestCase):
         validator.role_discovery_max_attempts = 1
         validator.role_discovery_poll_interval = 0
         validator.discover_roles = MagicMock(return_value=role_map)
-        validator.run_epoch = MagicMock(return_value=(1.0, 1.0))
+        validator.run_epoch = MagicMock(return_value=(1.0, 1.0, 1.0, 1.0))
 
         with patch.object(validator_module, "NUM_EPOCHS", 10), patch.object(
             validator_module.random,
