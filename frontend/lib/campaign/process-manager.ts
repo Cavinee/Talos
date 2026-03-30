@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import fs from "node:fs/promises";
-import { closeSync, openSync } from "node:fs";
+import { closeSync, openSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,6 +36,9 @@ const DOCKER_START_POLL_INTERVAL_MS = 250;
 const DOCKER_START_MAX_POLLS = 8;
 const DEFAULT_CAMPAIGN_CHAIN_ENDPOINT =
   process.env.CHAIN_ENDPOINT?.trim() || "ws://127.0.0.1:9945";
+const RUN_ALL_STOP_SENTINEL = "All miners and validators stopped.";
+const VALIDATOR_COMPLETION_SENTINEL = "All epochs complete. Validator exiting.";
+const RUN_ALL_LOG_PATH = path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, "run_all.log");
 
 interface ResolvedCampaignServiceDefinition extends CampaignServiceDefinition {
   scriptPath: string;
@@ -83,6 +86,7 @@ export interface CampaignManagerDependencies {
   ): Promise<ContainerInspectionResult>;
   inspectChainEndpoint(endpoint: string): Promise<ChainEndpointInspectionResult>;
   isProcessAlive(pid: number): boolean;
+  inspectProcessCommand(pid: number): Promise<string | undefined>;
   startDetachedService(
     service: ResolvedCampaignServiceDefinition,
   ): Promise<DetachedLaunchResult>;
@@ -180,6 +184,7 @@ function createDependencies(): CampaignManagerDependencies {
     inspectContainer: inspectDockerContainer,
     inspectChainEndpoint,
     isProcessAlive: isProcessAlive,
+    inspectProcessCommand,
     startDetachedService: startDetachedService,
     startDockerService: startDockerService,
     now: () => new Date().toISOString(),
@@ -188,6 +193,28 @@ function createDependencies(): CampaignManagerDependencies {
 
 function isLocalChainService(service: ResolvedCampaignServiceDefinition): boolean {
   return service.key === "local_chain";
+}
+
+function isMinerOrValidatorService(
+  service: ResolvedCampaignServiceDefinition,
+): boolean {
+  return (
+    service.key.startsWith("red_miner_") ||
+    service.key.startsWith("blue_miner_") ||
+    service.key.startsWith("validator_")
+  );
+}
+
+function createRunAllServiceDefinition(): ResolvedCampaignServiceDefinition {
+  return {
+    key: "red_miner_1",
+    label: "Campaign Services",
+    scriptRelativePath: "subnet/scripts/localnet/10_run_all.sh",
+    scriptPath: path.join(repoRoot, "subnet/scripts/localnet/10_run_all.sh"),
+    commandLabel: "run all campaign services",
+    healthCheck: "process",
+    logPath: RUN_ALL_LOG_PATH,
+  };
 }
 
 async function inspectChainEndpoint(
@@ -287,6 +314,39 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+async function inspectProcessCommand(
+  pid: number,
+): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync(
+      "ps",
+      ["-p", String(pid), "-o", "command="],
+      { cwd: repoRoot },
+    );
+    const command = stdout.trim();
+    return command || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveExpectedProcessMarker(
+  normalizedState: CampaignServiceState,
+  service: ResolvedCampaignServiceDefinition,
+): string {
+  if (normalizedState.logPath === RUN_ALL_LOG_PATH) {
+    return "10_run_all.sh";
+  }
+
+  return path.basename(service.scriptPath);
+}
+
+function isSharedRunAllState(
+  normalizedState: CampaignServiceState,
+): boolean {
+  return normalizedState.logPath === RUN_ALL_LOG_PATH;
+}
+
 async function startDetachedService(
   service: ResolvedCampaignServiceDefinition,
 ): Promise<DetachedLaunchResult> {
@@ -295,9 +355,19 @@ async function startDetachedService(
   const logPath =
     service.logPath ??
     path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, `${service.key}.log`);
-  const logFd = openSync(logPath, "a");
+  const logFd = openSync(
+    logPath,
+    service.logPath === RUN_ALL_LOG_PATH ? "w" : "a",
+  );
 
   try {
+    if (service.logPath === RUN_ALL_LOG_PATH) {
+      writeSync(
+        logFd,
+        `[frontend-launch ${new Date().toISOString()}] ${service.commandLabel}\n`,
+      );
+    }
+
     const child = spawn(
       "bash",
       [service.scriptPath, ...(service.launchArguments ?? [])],
@@ -617,18 +687,74 @@ async function inspectPersistedServiceState(
     };
   }
 
-  const healthy = dependencies.isProcessAlive(normalizedState.pid);
+  const processAlive = dependencies.isProcessAlive(normalizedState.pid);
+  const processCommand = processAlive
+    ? await dependencies.inspectProcessCommand(normalizedState.pid)
+    : undefined;
+  const expectedProcessMarker = resolveExpectedProcessMarker(
+    normalizedState,
+    service,
+  );
+  const processCommandMismatch =
+    processAlive &&
+    typeof processCommand === "string" &&
+    !processCommand.includes(expectedProcessMarker);
+  const healthy =
+    processAlive &&
+    !processCommandMismatch;
   const shouldReadDebugLog = !healthy && Boolean(normalizedState.logPath);
   const debugLogTail = shouldReadDebugLog
     ? await readDebugLogTail(normalizedState.logPath, 8, 1200)
     : undefined;
 
-  const VALIDATOR_COMPLETION_SENTINEL = "All epochs complete. Validator exiting.";
   const effectiveLogTail = debugLogTail ?? normalizedState.debugLogTail;
   const isValidatorKey = service.key.startsWith("validator_");
+  const isMinerOrValidatorKey = isMinerOrValidatorService(service);
+  const hasRunAllStopSentinel =
+    typeof effectiveLogTail === "string" &&
+    effectiveLogTail.includes(RUN_ALL_STOP_SENTINEL);
   const hasCompletionSentinel =
     typeof effectiveLogTail === "string" &&
     effectiveLogTail.includes(VALIDATOR_COMPLETION_SENTINEL);
+
+  // When run_all.sh is still alive, validators won't be caught by !healthy checks.
+  // Read the individual validator log to detect completion independently.
+  const shouldCheckIndividualLog =
+    healthy &&
+    isValidatorKey &&
+    isSharedRunAllState(normalizedState) &&
+    Boolean(service.logPath);
+  const individualLogTail = shouldCheckIndividualLog
+    ? await readDebugLogTail(service.logPath, 8, 1200)
+    : undefined;
+  const hasCompletionSentinelInIndividualLog =
+    typeof individualLogTail === "string" &&
+    individualLogTail.includes(VALIDATOR_COMPLETION_SENTINEL);
+
+  if (processCommandMismatch && isSharedRunAllState(normalizedState)) {
+    return {
+      ...createBaseServiceState(service),
+      status: "stopped",
+    };
+  }
+
+  if (healthy && isValidatorKey && hasCompletionSentinelInIndividualLog) {
+    return {
+      ...normalizedState,
+      status: "stopped",
+      lastKnownError: undefined,
+      debugLogTail: individualLogTail,
+    };
+  }
+
+  if (!healthy && isMinerOrValidatorKey && hasRunAllStopSentinel) {
+    return {
+      ...normalizedState,
+      status: "stopped",
+      lastKnownError: undefined,
+      debugLogTail: effectiveLogTail,
+    };
+  }
 
   if (!healthy && isValidatorKey && hasCompletionSentinel) {
     return {
@@ -741,8 +867,6 @@ export function createCampaignProcessManager(
         }
       }
 
-      const launchQueue: ResolvedCampaignServiceDefinition[] = [];
-
       for (const service of services) {
         const currentState = await inspectPersistedServiceState(
           service,
@@ -756,20 +880,37 @@ export function createCampaignProcessManager(
         }
       }
 
-      for (const service of services) {
-        if (state[service.key]?.status === "running") {
-          continue;
-        }
+      const localChainService = services.find(isLocalChainService);
+      const processServices = services.filter(isMinerOrValidatorService);
+      const shouldLaunchLocalChain =
+        localChainService !== undefined &&
+        state[localChainService.key]?.status !== "running";
+      const processServicesToLaunch = processServices.filter(
+        (service) => state[service.key]?.status !== "running",
+      );
+      const shouldLaunchProcessGroup = processServicesToLaunch.length > 0;
+      const launchedAt = dependencies.now();
 
-        launchQueue.push(service);
-        state[service.key] = {
-          ...createBaseServiceState(service),
+      if (shouldLaunchLocalChain && localChainService) {
+        state[localChainService.key] = {
+          ...createBaseServiceState(localChainService),
           status: "starting",
-          launchedAt: dependencies.now(),
-          ...(state[service.key]?.containerId
-            ? { containerId: state[service.key]?.containerId }
+          launchedAt,
+          ...(state[localChainService.key]?.containerId
+            ? { containerId: state[localChainService.key]?.containerId }
             : {}),
         };
+      }
+
+      if (shouldLaunchProcessGroup) {
+        for (const service of processServices) {
+          state[service.key] = {
+            ...createBaseServiceState(service),
+            status: "starting",
+            launchedAt,
+            logPath: RUN_ALL_LOG_PATH,
+          };
+        }
       }
 
       await dependencies.writeRuntimeState(state);
@@ -778,76 +919,92 @@ export function createCampaignProcessManager(
         setTimeout(() => {
           void (async () => {
             try {
-              for (const service of launchQueue) {
+              if (shouldLaunchLocalChain && localChainService) {
                 const latestState = await dependencies.readRuntimeState();
 
                 try {
-                  if (service.healthCheck === "docker") {
-                    const launchResult =
-                      await dependencies.startDockerService(service);
-                    if (isLocalChainService(service)) {
-                      const endpointInspection = await dependencies.inspectChainEndpoint(
-                        DEFAULT_CAMPAIGN_CHAIN_ENDPOINT,
-                      );
-                      if (!endpointInspection.healthy) {
-                        throw new Error(
-                          endpointInspection.lastKnownError ??
-                            `${service.label} RPC endpoint is unavailable.`,
-                        );
-                      }
-                    }
-                    latestState[service.key] = {
-                      ...createBaseServiceState(service),
-                      status: "starting",
-                      launchedAt: launchResult.launchedAt ?? dependencies.now(),
-                      containerId:
-                        launchResult.containerId ??
-                        latestState[service.key]?.containerId,
-                    };
-                  } else {
-                    const launchResult =
-                      await dependencies.startDetachedService(service);
-                    latestState[service.key] = {
-                      ...createBaseServiceState(service),
-                      status:
-                        launchResult.lastKnownError ||
-                        (launchResult.exitCode !== undefined &&
-                          launchResult.exitCode !== null &&
-                          launchResult.exitCode !== 0)
-                          ? "failed"
-                          : "starting",
-                      pid: launchResult.pid,
-                      launchedAt: launchResult.launchedAt ?? dependencies.now(),
-                      logPath: launchResult.logPath ?? service.logPath,
-                      lastKnownError: launchResult.lastKnownError,
-                      debugLogTail: launchResult.debugLogTail,
-                    };
+                  const launchResult =
+                    await dependencies.startDockerService(localChainService);
+                  const endpointInspection = await dependencies.inspectChainEndpoint(
+                    DEFAULT_CAMPAIGN_CHAIN_ENDPOINT,
+                  );
+
+                  if (!endpointInspection.healthy) {
+                    throw new Error(
+                      endpointInspection.lastKnownError ??
+                        `${localChainService.label} RPC endpoint is unavailable.`,
+                    );
                   }
+
+                  latestState[localChainService.key] = {
+                    ...createBaseServiceState(localChainService),
+                    status: "starting",
+                    launchedAt: launchResult.launchedAt ?? dependencies.now(),
+                    containerId:
+                      launchResult.containerId ??
+                      latestState[localChainService.key]?.containerId,
+                  };
                 } catch (error) {
-                  latestState[service.key] = {
-                    ...createBaseServiceState(service),
+                  latestState[localChainService.key] = {
+                    ...createBaseServiceState(localChainService),
                     status: "failed",
                     launchedAt: dependencies.now(),
                     lastKnownError: normalizeError(error),
                   };
 
-                  if (isLocalChainService(service)) {
-                    for (const pendingService of launchQueue) {
-                      if (
-                        pendingService.key === service.key ||
-                        latestState[pendingService.key]?.status === "running"
-                      ) {
-                        continue;
-                      }
-
-                      latestState[pendingService.key] = {
-                        ...createBaseServiceState(pendingService),
-                        status: "stopped",
-                      };
+                  for (const processService of processServices) {
+                    if (latestState[processService.key]?.status === "running") {
+                      continue;
                     }
 
-                    await dependencies.writeRuntimeState(latestState);
-                    break;
+                    latestState[processService.key] = {
+                      ...createBaseServiceState(processService),
+                      status: "stopped",
+                    };
+                  }
+
+                  await dependencies.writeRuntimeState(latestState);
+                  return;
+                }
+
+                await dependencies.writeRuntimeState(latestState);
+              }
+
+              if (shouldLaunchProcessGroup) {
+                const latestState = await dependencies.readRuntimeState();
+                const runAllService = createRunAllServiceDefinition();
+
+                try {
+                  const launchResult =
+                    await dependencies.startDetachedService(runAllService);
+                  const nextStatus: CampaignServiceState["status"] =
+                    launchResult.lastKnownError ||
+                    (launchResult.exitCode !== undefined &&
+                      launchResult.exitCode !== null &&
+                      launchResult.exitCode !== 0)
+                      ? "failed"
+                      : "starting";
+
+                  for (const processService of processServices) {
+                    latestState[processService.key] = {
+                      ...createBaseServiceState(processService),
+                      status: nextStatus,
+                      pid: launchResult.pid,
+                      launchedAt: launchResult.launchedAt ?? dependencies.now(),
+                      logPath: launchResult.logPath ?? RUN_ALL_LOG_PATH,
+                      lastKnownError: launchResult.lastKnownError,
+                      debugLogTail: launchResult.debugLogTail,
+                    };
+                  }
+                } catch (error) {
+                  for (const processService of processServices) {
+                    latestState[processService.key] = {
+                      ...createBaseServiceState(processService),
+                      status: "failed",
+                      launchedAt: dependencies.now(),
+                      logPath: RUN_ALL_LOG_PATH,
+                      lastKnownError: normalizeError(error),
+                    };
                   }
                 }
 

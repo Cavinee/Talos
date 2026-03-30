@@ -7,6 +7,7 @@ import test from "node:test";
 import * as processManagerModule from "../process-manager.ts";
 import {
   createCampaignProcessManager,
+  CAMPAIGN_RUNTIME_LOG_DIRECTORY,
   type CampaignManagerDependencies,
   type CampaignRuntimeState,
   type CampaignServiceDefinition,
@@ -1036,4 +1037,65 @@ test("dead process entries with preserved crash logs stay failed instead of reve
     /wallet is not registered/i,
   );
   assert.equal(persisted?.status, "failed");
+});
+
+test("a validator using run_all state is shown as stopped when its individual log contains the completion sentinel", async () => {
+  const logFileName = "validator_test_completion_sentinel.log";
+  const logPath = path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, logFileName);
+  const runAllLogPath = path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, "run_all.log");
+
+  await fs.mkdir(CAMPAIGN_RUNTIME_LOG_DIRECTORY, { recursive: true });
+  await fs.writeFile(
+    logPath,
+    "Weights set successfully for all miners.\nAll epochs complete. Validator exiting.",
+    "utf8",
+  );
+
+  try {
+    const { manager, store } = createManager({
+      services: [
+        {
+          key: "validator_1",
+          label: "Validator 1",
+          scriptRelativePath: "subnet/scripts/localnet/09_run_validator.sh",
+          commandLabel: "validator 1",
+          healthCheck: "process",
+          launchArguments: ["1"],
+          logFileName,
+        },
+      ],
+      state: {
+        validator_1: {
+          service: "validator_1",
+          label: "Validator 1",
+          status: "running",
+          launcher: "process",
+          pid: 46671,
+          scriptPath:
+            "/Users/cavine/Code/Talos/subnet/scripts/localnet/09_run_validator.sh",
+          launchedAt: "2026-03-30T10:00:00.000Z",
+          commandLabel: "validator 1",
+          logPath: runAllLogPath,
+        },
+      },
+      overrides: {
+        isProcessAlive: (pid) => pid === 46671,
+        inspectProcessCommand: async (pid) =>
+          pid === 46671
+            ? "bash /repo/subnet/scripts/localnet/10_run_all.sh"
+            : undefined,
+      },
+    });
+
+    const snapshot = await manager.getCampaignServiceSnapshot();
+    const persisted = store.current().validator_1;
+
+    assert.equal(snapshot.validator_1.status, "stopped");
+    assert.equal(snapshot.validator_1.lastKnownError, undefined);
+    assert.match(snapshot.validator_1.debugLogTail ?? "", /All epochs complete/i);
+    assert.equal(persisted?.status, "stopped");
+    assert.equal(persisted?.lastKnownError, undefined);
+  } finally {
+    await fs.rm(logPath, { force: true });
+  }
 });
