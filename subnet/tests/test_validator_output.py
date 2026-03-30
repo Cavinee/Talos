@@ -156,5 +156,78 @@ class TestAppendThreatEntries(unittest.TestCase):
             self.assertFalse(path.exists())
 
 
+class TestWriteRankings(unittest.TestCase):
+    def setUp(self):
+        _stub_bittensor()
+        import validator as v
+        self.v = v
+
+    def _make_metagraph(self, red_uids, blue_uids):
+        mg = MagicMock()
+        all_uids = red_uids + blue_uids
+        mg.hotkeys = {uid: f"5F{uid:06x}aabbccdd" for uid in range(max(all_uids) + 1)}
+        return mg
+
+    def test_creates_rankings_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rankings.json"
+            red_uids = [0, 1]
+            blue_uids = [2, 3]
+            score_acc = {
+                0: {"total_score": 0.8, "num_epochs": 2},
+                1: {"total_score": 0.4, "num_epochs": 2},
+                2: {"total_score": 1.8, "num_epochs": 2},
+                3: {"total_score": 1.2, "num_epochs": 2},
+            }
+            blue_stats = {
+                2: {"total_precision": 1.8, "total_recall": 1.6, "num_epochs": 2},
+                3: {"total_precision": 1.4, "total_recall": 1.2, "num_epochs": 2},
+            }
+            mg = self._make_metagraph(red_uids, blue_uids)
+            self.v.write_rankings(red_uids, blue_uids, score_acc, blue_stats, mg, path)
+            data = json.loads(path.read_text())
+            self.assertIn("red", data)
+            self.assertIn("blue", data)
+            self.assertIn("lastUpdated", data)
+            self.assertEqual(len(data["red"]), 2)
+            self.assertEqual(len(data["blue"]), 2)
+
+    def test_red_miners_sorted_by_score_descending(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rankings.json"
+            red_uids = [0, 1]
+            blue_uids = [2]
+            score_acc = {
+                0: {"total_score": 0.4, "num_epochs": 2},
+                1: {"total_score": 0.8, "num_epochs": 2},
+                2: {"total_score": 1.6, "num_epochs": 2},
+            }
+            blue_stats = {2: {"total_precision": 1.6, "total_recall": 1.6, "num_epochs": 2}}
+            mg = self._make_metagraph(red_uids, blue_uids)
+            self.v.write_rankings(red_uids, blue_uids, score_acc, blue_stats, mg, path)
+            data = json.loads(path.read_text())
+            self.assertEqual(data["red"][0]["rank"], 1)
+            self.assertGreater(data["red"][0]["avgScore"], data["red"][1]["avgScore"])
+
+    def test_blue_miners_have_precision_recall_latency(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rankings.json"
+            red_uids = [0]
+            blue_uids = [1]
+            score_acc = {
+                0: {"total_score": 0.6, "num_epochs": 2},
+                1: {"total_score": 1.8, "num_epochs": 2},
+            }
+            blue_stats = {1: {"total_precision": 1.9, "total_recall": 1.8, "num_epochs": 2}}
+            mg = self._make_metagraph(red_uids, blue_uids)
+            self.v.write_rankings(red_uids, blue_uids, score_acc, blue_stats, mg, path)
+            data = json.loads(path.read_text())
+            blue = data["blue"][0]
+            self.assertAlmostEqual(blue["precision"], 95.0, places=0)
+            self.assertAlmostEqual(blue["recall"], 90.0, places=0)
+            self.assertIn("latency", blue)
+            self.assertIn("avgF1", blue)
+
+
 if __name__ == "__main__":
     unittest.main()

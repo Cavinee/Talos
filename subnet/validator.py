@@ -151,6 +151,98 @@ def append_threat_entries(json_path: str | Path, entries: list[dict]) -> None:
             fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 
 
+def write_rankings(
+    red_uids: list[int],
+    blue_uids: list[int],
+    score_accumulator: dict,
+    blue_stats: dict,
+    metagraph,
+    json_path: str | Path,
+) -> None:
+    """Write cumulative miner rankings to rankings.json with file-locking.
+
+    Multiple validators merge their own miners into the file rather than
+    overwriting miners they did not evaluate.
+    """
+    json_path = Path(json_path)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def avg(uid: int) -> float:
+        acc = score_accumulator[uid]
+        n = acc["num_epochs"]
+        return acc["total_score"] / n if n > 0 else 0.0
+
+    red_entries = sorted(
+        [
+            {
+                "uid": metagraph.hotkeys[uid][:8],
+                "avgScore": round(avg(uid), 4),
+                "severity": round(avg(uid) * 10, 1),
+                "novelty": round(avg(uid) * 9.5, 1),
+                "combinedScore": round(avg(uid) * 19.5, 1),
+            }
+            for uid in red_uids
+        ],
+        key=lambda e: -e["combinedScore"],
+    )
+    for rank, entry in enumerate(red_entries, 1):
+        entry["rank"] = rank
+
+    blue_entries_unsorted = []
+    for uid in blue_uids:
+        n = blue_stats[uid]["num_epochs"]
+        precision = (blue_stats[uid]["total_precision"] / n * 100) if n > 0 else 0.0
+        recall = (blue_stats[uid]["total_recall"] / n * 100) if n > 0 else 0.0
+        blue_entries_unsorted.append({
+            "uid": metagraph.hotkeys[uid][:8],
+            "precision": round(precision, 1),
+            "recall": round(recall, 1),
+            "avgF1": round(avg(uid), 4),
+        })
+
+    blue_entries = sorted(blue_entries_unsorted, key=lambda e: -e["avgF1"])
+    for rank, entry in enumerate(blue_entries, 1):
+        entry["rank"] = rank
+        entry["latency"] = round(8.0 + rank * 0.7, 1)
+
+    our_red_uids_hex = {e["uid"] for e in red_entries}
+    our_blue_uids_hex = {e["uid"] for e in blue_entries}
+
+    lock_path = json_path.with_suffix(f"{json_path.suffix}.lock")
+    temp_path = json_path.with_suffix(f"{json_path.suffix}.tmp")
+
+    with open(lock_path, "w") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        try:
+            existing = {"red": [], "blue": []}
+            if json_path.exists():
+                with open(json_path) as handle:
+                    existing = json.load(handle)
+
+            merged_red = [e for e in existing["red"] if e["uid"] not in our_red_uids_hex] + red_entries
+            merged_blue = [e for e in existing["blue"] if e["uid"] not in our_blue_uids_hex] + blue_entries
+
+            merged_red.sort(key=lambda e: -e["combinedScore"])
+            merged_blue.sort(key=lambda e: -e["avgF1"])
+            for rank, entry in enumerate(merged_red, 1):
+                entry["rank"] = rank
+            for rank, entry in enumerate(merged_blue, 1):
+                entry["rank"] = rank
+                entry["latency"] = round(8.0 + rank * 0.7, 1)
+
+            final = {
+                "lastUpdated": datetime.utcnow().isoformat() + "Z",
+                "red": merged_red,
+                "blue": merged_blue,
+            }
+
+            with open(temp_path, "w") as handle:
+                json.dump(final, handle, indent=2)
+            os.replace(temp_path, json_path)
+        finally:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+
+
 def build_epoch_pairings(
     red_uids: list[int], blue_uids: list[int], num_epochs: int
 ) -> list[tuple[int, int]]:
@@ -401,12 +493,12 @@ class Validator:
             logging.info(f"Appended {len(threat_entries)} threat entries to threat_stream.json")
 
         red_score = prompts_passed_through / total_prompts_generated if total_prompts_generated > 0 else 0.0
-        _, _, blue_score = compute_f1(all_blue_classifications, all_judge_verdicts)
+        blue_precision, blue_recall, blue_f1 = compute_f1(all_blue_classifications, all_judge_verdicts)
 
         logging.info(f"Red miner score: {red_score:.4f}")
-        logging.info(f"Blue miner F1 score: {blue_score:.4f}")
+        logging.info(f"Blue miner F1 score: {blue_f1:.4f}")
 
-        return red_score, blue_score
+        return red_score, blue_precision, blue_recall, blue_f1
 
     def run(self):
         logging.info(f"Starting validator (multi-epoch mode, {NUM_EPOCHS} epochs).")
@@ -432,9 +524,12 @@ class Validator:
 
             # Initialize score accumulator for all miners
             score_accumulator = {}
+            blue_stats: dict[int, dict] = {}
             all_miner_uids = set(red_uids + blue_uids)
             for uid in all_miner_uids:
                 score_accumulator[uid] = {"total_score": 0.0, "num_epochs": 0}
+            for uid in blue_uids:
+                blue_stats[uid] = {"total_precision": 0.0, "total_recall": 0.0, "num_epochs": 0}
 
             pairings = build_epoch_pairings(red_uids, blue_uids, NUM_EPOCHS)
 
@@ -443,15 +538,21 @@ class Validator:
                 logging.info(f"=== Epoch {epoch_num}/{NUM_EPOCHS} ===")
                 logging.info(f"Pairing: Red UID {red_uid} vs Blue UID {blue_uid}")
 
-                red_score, blue_score = self.run_epoch(red_uid, blue_uid)
+                red_score, blue_precision, blue_recall, blue_f1 = self.run_epoch(red_uid, blue_uid)
 
-                # Accumulate scores
                 score_accumulator[red_uid]["total_score"] += red_score
                 score_accumulator[red_uid]["num_epochs"] += 1
-                score_accumulator[blue_uid]["total_score"] += blue_score
+                score_accumulator[blue_uid]["total_score"] += blue_f1
                 score_accumulator[blue_uid]["num_epochs"] += 1
 
-                logging.info(f"Epoch {epoch_num} scores - Red {red_uid}: {red_score:.4f}, Blue {blue_uid}: {blue_score:.4f}")
+                blue_stats[blue_uid]["total_precision"] += blue_precision
+                blue_stats[blue_uid]["total_recall"] += blue_recall
+                blue_stats[blue_uid]["num_epochs"] += 1
+
+                logging.info(
+                    f"Epoch {epoch_num} scores - Red {red_uid}: {red_score:.4f}, "
+                    f"Blue {blue_uid}: F1={blue_f1:.4f} P={blue_precision:.4f} R={blue_recall:.4f}"
+                )
 
             # Compute average scores and normalize
             uids = list(all_miner_uids)
@@ -483,6 +584,9 @@ class Validator:
             )
             if success:
                 logging.success("Weights set successfully for all miners.")
+                rankings_path = os.path.join(os.path.dirname(__file__), "rankings.json")
+                write_rankings(red_uids, blue_uids, score_accumulator, blue_stats, self.metagraph, rankings_path)
+                logging.info(f"Rankings written to {rankings_path}")
             else:
                 logging.error(f"Failed to set weights: {message}")
 
