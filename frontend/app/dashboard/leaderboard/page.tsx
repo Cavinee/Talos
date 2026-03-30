@@ -3,23 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 
 import FactionTable from "@/components/leaderboard/FactionTable";
-
-interface MinerRanking {
-  uid: number;
-  role: "red" | "blue";
-  avgScore: number;
-  normalizedWeight: number;
-  rank: number;
-  validatorKey: string;
-}
+import type { CampaignRankings, MinerRanking } from "@/lib/campaign/rankings-parser";
 
 interface RankingsResponse {
-  rankings: {
-    red: MinerRanking[];
-    blue: MinerRanking[];
-    lastUpdatedAt: string;
-    validatorsCompleted: number;
-  };
+  rankings: CampaignRankings;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 3000;
