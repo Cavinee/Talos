@@ -1,7 +1,20 @@
+"use client";
+
 import FactionTable from "@/components/leaderboard/FactionTable";
-import { redFaction, blueFaction } from "@/data/mock";
+import { useLiveData } from "@/hooks/useLiveData";
+import type { RedMiner, BlueMiner } from "@/data/mock";
+
+interface RankingsResponse {
+  red: RedMiner[];
+  blue: BlueMiner[];
+  lastUpdated: string | null;
+}
+
+const EMPTY: RankingsResponse = { red: [], blue: [], lastUpdated: null };
 
 export default function LeaderboardPage() {
+  const { data } = useLiveData<RankingsResponse>("/api/rankings", EMPTY, 10000);
+
   return (
     <div className="flex gap-6">
       <div className="flex-1">
@@ -15,7 +28,7 @@ export default function LeaderboardPage() {
             { key: "novelty", label: "Novelty" },
             { key: "combinedScore", label: "Combined" },
           ]}
-          data={redFaction}
+          data={data.red}
         />
       </div>
       <div className="flex-1">
@@ -29,7 +42,7 @@ export default function LeaderboardPage() {
             { key: "precision", label: "Precision %" },
             { key: "latency", label: "Latency (ms)" },
           ]}
-          data={blueFaction}
+          data={data.blue}
         />
       </div>
     </div>
