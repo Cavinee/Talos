@@ -1,5 +1,6 @@
 __pycache__/
 dangerous_prompts.json
+dangerous_prompts.json.lock
 .env
 .worktrees/
 models/

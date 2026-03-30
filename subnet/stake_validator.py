@@ -11,7 +11,7 @@ import bittensor as bt
 from bittensor_wallet import Wallet
 
 NETUID = int(os.environ.get("NETUID", 2))
-NETWORK = os.environ.get("NETWORK", "local")
+NETWORK = os.environ.get("NETWORK", "ws://127.0.0.1:9945")
 STAKE_PER_ROUND = int(os.environ.get("STAKE_PER_ROUND", 100))
 TARGET_ROUNDS = int(os.environ.get("STAKE_ROUNDS", 30))
 WALLET_NAME = os.environ.get("WALLET_NAME", "test-validator")
