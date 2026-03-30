@@ -3,60 +3,50 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import type {
-  CampaignServiceKey,
   CampaignServiceSnapshot,
   CampaignServiceState,
   CampaignServiceStatus,
 } from "@/lib/campaign/types";
-
-const SERVICE_ORDER: CampaignServiceKey[] = [
-  "local_chain",
-  "red_miner",
-  "blue_miner",
-  "validator",
-];
+import {
+  CAMPAIGN_SERVICE_ORDER,
+  createDefaultCampaignServiceSnapshot,
+} from "@/lib/campaign/services";
 
 const DEFAULT_POLL_INTERVAL_MS = 3000;
+const DEFAULT_SNAPSHOT = createDefaultCampaignServiceSnapshot();
+const VALIDATOR_COMPLETION_SENTINEL = "All epochs complete. Validator exiting.";
+const NOTIFICATION_TTL_MS = 8000;
 
-const DEFAULT_SNAPSHOT: CampaignServiceSnapshot = {
-  local_chain: {
-    service: "local_chain",
-    label: "Local Chain",
-    status: "stopped",
-    launcher: "docker",
-    scriptPath: "",
-    commandLabel: "docker run local_chain",
-    containerName: "local_chain",
-  },
-  red_miner: {
-    service: "red_miner",
-    label: "Red Miner",
-    status: "stopped",
-    launcher: "process",
-    scriptPath: "",
-    commandLabel: "red miner",
-  },
-  blue_miner: {
-    service: "blue_miner",
-    label: "Blue Miner",
-    status: "stopped",
-    launcher: "process",
-    scriptPath: "",
-    commandLabel: "blue miner",
-  },
-  validator: {
-    service: "validator",
-    label: "Validator",
-    status: "stopped",
-    launcher: "process",
-    scriptPath: "",
-    commandLabel: "validator",
-  },
-};
+interface ValidatorNotification {
+  id: number;
+  label: string;
+}
+
+let notificationIdCounter = 0;
+
+interface CampaignPreflightBlocker {
+  code: string;
+  title: string;
+  detail: string;
+  readmeStep: string;
+  commands: string[];
+  affectedWallets?: string[];
+}
+
+interface CampaignPreflightInfo {
+  ready: boolean;
+  checkedAt: string;
+  chainEndpoint: string;
+  netuid: number;
+  readmePath: string;
+  blockers: CampaignPreflightBlocker[];
+}
 
 type CampaignStatusResponse = {
   services: CampaignServiceSnapshot | null;
   error?: string;
+  launchStarted?: boolean;
+  preflight?: CampaignPreflightInfo;
 };
 
 const badgeClassNames: Record<CampaignServiceStatus, string> = {
@@ -83,6 +73,14 @@ function formatServiceDetail(service: CampaignServiceState) {
   }
 
   if (service.status === "stopped") {
+    if (
+      service.service.startsWith("validator_") &&
+      typeof service.debugLogTail === "string" &&
+      service.debugLogTail.includes(VALIDATOR_COMPLETION_SENTINEL)
+    ) {
+      return "Completed — weights set";
+    }
+
     return "Awaiting launch";
   }
 
@@ -118,6 +116,9 @@ export default function TargetSetup({
   const [services, setServices] = useState<CampaignServiceSnapshot>(DEFAULT_SNAPSHOT);
   const [isLaunching, setIsLaunching] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [blockedPreflight, setBlockedPreflight] =
+    useState<CampaignPreflightInfo | null>(null);
+  const [notifications, setNotifications] = useState<ValidatorNotification[]>([]);
   const pollingTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const servicesRef = useRef(services);
@@ -143,11 +144,53 @@ export default function TargetSetup({
     }
   }
 
+  function detectValidatorCompletions(
+    previous: CampaignServiceSnapshot,
+    next: CampaignServiceSnapshot,
+  ) {
+    const newNotifications: ValidatorNotification[] = [];
+
+    for (const key of CAMPAIGN_SERVICE_ORDER) {
+      if (!key.startsWith("validator_")) continue;
+
+      const prev = previous[key];
+      const curr = next[key];
+
+      const wasActive =
+        prev.status === "running" || prev.status === "starting";
+      const nowStopped = curr.status === "stopped";
+      const hasCompletionSentinel =
+        typeof curr.debugLogTail === "string" &&
+        curr.debugLogTail.includes(VALIDATOR_COMPLETION_SENTINEL);
+
+      if (wasActive && nowStopped && hasCompletionSentinel) {
+        notificationIdCounter += 1;
+        const notification: ValidatorNotification = {
+          id: notificationIdCounter,
+          label: curr.label,
+        };
+        newNotifications.push(notification);
+
+        setTimeout(() => {
+          if (!mountedRef.current) return;
+          setNotifications((prev) =>
+            prev.filter((n) => n.id !== notification.id),
+          );
+        }, NOTIFICATION_TTL_MS);
+      }
+    }
+
+    if (newNotifications.length > 0) {
+      setNotifications((prev) => [...prev, ...newNotifications]);
+    }
+  }
+
   function applySnapshot(snapshot: CampaignServiceSnapshot) {
     if (!mountedRef.current) {
       return;
     }
 
+    detectValidatorCompletions(servicesRef.current, snapshot);
     servicesRef.current = snapshot;
     setServices(snapshot);
 
@@ -229,6 +272,7 @@ export default function TargetSetup({
 
     setIsLaunching(true);
     setRequestError(null);
+    setBlockedPreflight(null);
     statusEpochRef.current += 1;
 
     try {
@@ -238,6 +282,18 @@ export default function TargetSetup({
       const payload = await parseCampaignResponse(response);
 
       if (!mountedRef.current) {
+        return;
+      }
+
+      if (
+        payload.launchStarted === false &&
+        payload.preflight &&
+        !payload.preflight.ready
+      ) {
+        setBlockedPreflight(payload.preflight);
+        if (payload.services) {
+          applySnapshot(payload.services);
+        }
         return;
       }
 
@@ -282,13 +338,14 @@ export default function TargetSetup({
             Campaign Control Panel
           </h2>
           <p className="text-text-secondary text-sm">
-            Launch the localnet stack and monitor the chain, miners, and validator
-            from one operator console. The client API URL stays local for now so we
-            can wire the future target endpoint without altering the live services.
+            Launch the full localnet stack and monitor the chain, miners, and
+            validators from one operator console. The client API URL stays local
+            for now so we can wire the future target endpoint without altering the
+            live services.
           </p>
         </div>
         <div className="rounded-lg border border-border bg-base px-3 py-2 text-xs text-text-secondary">
-          Services: local chain, red miner, blue miner, validator
+          Services: 14 total (1 chain, 5 red, 5 blue, 3 validators)
         </div>
       </div>
 
@@ -333,10 +390,76 @@ export default function TargetSetup({
               {requestError}
             </div>
           ) : null}
+
+          {notifications.map((n) => (
+            <div
+              key={n.id}
+              className="rounded-lg border border-success/30 bg-success/5 px-4 py-3 flex items-center justify-between gap-3"
+            >
+              <p className="text-sm text-success">
+                {n.label} completed — weights set successfully.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setNotifications((prev) =>
+                    prev.filter((x) => x.id !== n.id),
+                  )
+                }
+                className="text-success/60 hover:text-success text-xs font-medium"
+              >
+                Dismiss
+              </button>
+            </div>
+          ))}
+
+          {blockedPreflight ? (
+            <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-4 space-y-3">
+              <p className="text-sm font-semibold text-warning">
+                Launch blocked — complete the localnet bootstrap first
+              </p>
+              <p className="text-xs text-text-secondary">
+                Follow the steps in{" "}
+                <code className="text-text-primary">
+                  {blockedPreflight.readmePath.replace(/^.*?(subnet\/README\.md)$/, "$1")}
+                </code>{" "}
+                to prepare the local chain before launching.
+              </p>
+              <ul className="space-y-3">
+                {blockedPreflight.blockers.map((blocker) => (
+                  <li
+                    key={blocker.code}
+                    className="rounded-lg border border-border bg-base p-3 space-y-1"
+                  >
+                    <p className="text-sm font-medium text-text-primary">
+                      {blocker.title}
+                    </p>
+                    <p className="text-xs text-text-secondary">
+                      {blocker.detail}
+                    </p>
+                    {blocker.commands.map((command) => (
+                      <code
+                        key={command}
+                        className="block text-xs text-accent break-all"
+                      >
+                        {command}
+                      </code>
+                    ))}
+                    {blocker.affectedWallets?.length ? (
+                      <p className="text-xs text-text-secondary">
+                        Affected wallets:{" "}
+                        {blocker.affectedWallets.join(", ")}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          {SERVICE_ORDER.map((serviceKey) => {
+          {CAMPAIGN_SERVICE_ORDER.map((serviceKey) => {
             const service = services[serviceKey];
 
             return (

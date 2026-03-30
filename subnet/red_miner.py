@@ -8,6 +8,7 @@ from bittensor import Subtensor, Config, Axon
 from bittensor.utils.btlogging import logging
 from bittensor_wallet import Wallet
 
+from bittensor_network import resolve_subtensor_target
 from protocol import RoleDiscoverySynapse, RedTeamSynapse
 # from llm_client import LLMClient  # LLM implementation (commented out for mock testing)
 from mock_data import RED_MINER_SKILLS, get_mock_red_prompts
@@ -77,7 +78,10 @@ class RedMiner:
         logging.info(f"Wallet: {self.wallet}")
 
         # Initialize subtensor.
-        self.subtensor = Subtensor(config=self.config)
+        self.subtensor = Subtensor(
+            network=resolve_subtensor_target(self.config),
+            config=self.config,
+        )
         logging.info(f"Subtensor: {self.subtensor}")
 
         # Initialize metagraph.
@@ -162,6 +166,19 @@ class RedMiner:
         )
         logging.info(f"Axon: {self.axon}")
 
+    def _network_status_log(self) -> str:
+        block = self.metagraph.block.item()
+        incentive = "unavailable"
+        if self.my_subnet_uid is not None:
+            incentives = getattr(self.metagraph, "I", None)
+            try:
+                if incentives is not None and self.my_subnet_uid < len(incentives):
+                    incentive = incentives[self.my_subnet_uid]
+            except TypeError:
+                incentive = "unavailable"
+
+        return f"Block: {block} | Incentive: {incentive}"
+
     def run(self):
         self.setup_axon()
 
@@ -173,11 +190,7 @@ class RedMiner:
                 # Periodically update our knowledge of the network graph.
                 if step % 60 == 0:
                     self.metagraph.sync()
-                    log = (
-                        f"Block: {self.metagraph.block.item()} | "
-                        f"Incentive: {self.metagraph.I[self.my_subnet_uid]}"
-                    )
-                    logging.info(log)
+                    logging.info(self._network_status_log())
                 step += 1
                 time.sleep(1)
 

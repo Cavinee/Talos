@@ -34,6 +34,8 @@ export const CAMPAIGN_RUNTIME_STATE_FILE = path.join(
 const DOCKER_START_TIMEOUT_MS = 60_000;
 const DOCKER_START_POLL_INTERVAL_MS = 250;
 const DOCKER_START_MAX_POLLS = 8;
+const DEFAULT_CAMPAIGN_CHAIN_ENDPOINT =
+  process.env.CHAIN_ENDPOINT?.trim() || "ws://127.0.0.1:9945";
 
 interface ResolvedCampaignServiceDefinition extends CampaignServiceDefinition {
   scriptPath: string;
@@ -43,6 +45,11 @@ interface ResolvedCampaignServiceDefinition extends CampaignServiceDefinition {
 interface ContainerInspectionResult {
   healthy: boolean;
   containerId?: string;
+  lastKnownError?: string;
+}
+
+interface ChainEndpointInspectionResult {
+  healthy: boolean;
   lastKnownError?: string;
 }
 
@@ -74,6 +81,7 @@ export interface CampaignManagerDependencies {
   inspectContainer(
     service: ResolvedCampaignServiceDefinition,
   ): Promise<ContainerInspectionResult>;
+  inspectChainEndpoint(endpoint: string): Promise<ChainEndpointInspectionResult>;
   isProcessAlive(pid: number): boolean;
   startDetachedService(
     service: ResolvedCampaignServiceDefinition,
@@ -170,11 +178,62 @@ function createDependencies(): CampaignManagerDependencies {
     readRuntimeState: readCampaignRuntimeState,
     writeRuntimeState: writeCampaignRuntimeState,
     inspectContainer: inspectDockerContainer,
+    inspectChainEndpoint,
     isProcessAlive: isProcessAlive,
     startDetachedService: startDetachedService,
     startDockerService: startDockerService,
     now: () => new Date().toISOString(),
   };
+}
+
+function isLocalChainService(service: ResolvedCampaignServiceDefinition): boolean {
+  return service.key === "local_chain";
+}
+
+async function inspectChainEndpoint(
+  endpoint: string,
+): Promise<ChainEndpointInspectionResult> {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const socket = new WebSocket(endpoint);
+      const timeout = setTimeout(() => {
+        socket.close();
+        reject(new Error(`Timed out waiting for ${endpoint} to accept a websocket connection.`));
+      }, 3_000);
+
+      socket.addEventListener("open", () => {
+        clearTimeout(timeout);
+        socket.close();
+        resolve();
+      });
+
+      socket.addEventListener("error", () => {
+        clearTimeout(timeout);
+        reject(new Error(`${endpoint} rejected the websocket handshake.`));
+      });
+
+      socket.addEventListener("close", (event) => {
+        clearTimeout(timeout);
+        if (event.wasClean) {
+          resolve();
+          return;
+        }
+
+        reject(
+          new Error(
+            `${endpoint} closed the websocket handshake before the chain RPC became ready.`,
+          ),
+        );
+      });
+    });
+
+    return { healthy: true };
+  } catch (error) {
+    return {
+      healthy: false,
+      lastKnownError: normalizeError(error),
+    };
+  }
 }
 
 async function inspectDockerContainer(
@@ -500,27 +559,36 @@ async function inspectPersistedServiceState(
 
   if (service.healthCheck === "docker") {
     const inspection = await dependencies.inspectContainer(service);
+    const endpointInspection =
+      inspection.healthy && isLocalChainService(service)
+        ? await dependencies.inspectChainEndpoint(DEFAULT_CAMPAIGN_CHAIN_ENDPOINT)
+        : undefined;
+    const healthy =
+      inspection.healthy && (endpointInspection?.healthy ?? true);
+    const dependencyFailed = Boolean(endpointInspection && !endpointInspection.healthy);
+    const healthError =
+      endpointInspection?.lastKnownError ?? inspection.lastKnownError;
     const startingTimedOut =
       normalizedState.status === "starting" &&
       hasStartingTimedOut(normalizedState.launchedAt, dependencies.now());
 
     return {
       ...normalizedState,
-      status: inspection.healthy
+      status: healthy
         ? "running"
-        : startingTimedOut || normalizedState.status === "failed"
+        : dependencyFailed || startingTimedOut || normalizedState.status === "failed"
           ? "failed"
           : normalizedState.status === "starting"
             ? "starting"
             : "stopped",
       containerName: service.containerName,
       containerId: inspection.containerId ?? normalizedState.containerId,
-      lastKnownError: inspection.healthy
+      lastKnownError: healthy
         ? undefined
         : startingTimedOut
-          ? inspection.lastKnownError ??
+          ? healthError ??
             `${service.label} did not become healthy after launch.`
-          : normalizedState.lastKnownError ?? inspection.lastKnownError,
+          : normalizedState.lastKnownError ?? healthError,
     };
   }
 
@@ -717,6 +785,17 @@ export function createCampaignProcessManager(
                   if (service.healthCheck === "docker") {
                     const launchResult =
                       await dependencies.startDockerService(service);
+                    if (isLocalChainService(service)) {
+                      const endpointInspection = await dependencies.inspectChainEndpoint(
+                        DEFAULT_CAMPAIGN_CHAIN_ENDPOINT,
+                      );
+                      if (!endpointInspection.healthy) {
+                        throw new Error(
+                          endpointInspection.lastKnownError ??
+                            `${service.label} RPC endpoint is unavailable.`,
+                        );
+                      }
+                    }
                     latestState[service.key] = {
                       ...createBaseServiceState(service),
                       status: "starting",
@@ -751,6 +830,25 @@ export function createCampaignProcessManager(
                     launchedAt: dependencies.now(),
                     lastKnownError: normalizeError(error),
                   };
+
+                  if (isLocalChainService(service)) {
+                    for (const pendingService of launchQueue) {
+                      if (
+                        pendingService.key === service.key ||
+                        latestState[pendingService.key]?.status === "running"
+                      ) {
+                        continue;
+                      }
+
+                      latestState[pendingService.key] = {
+                        ...createBaseServiceState(pendingService),
+                        status: "stopped",
+                      };
+                    }
+
+                    await dependencies.writeRuntimeState(latestState);
+                    break;
+                  }
                 }
 
                 await dependencies.writeRuntimeState(latestState);

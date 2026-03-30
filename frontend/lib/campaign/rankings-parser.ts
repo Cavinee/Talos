@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -105,7 +106,7 @@ function parseLogContent(content: string, validatorKey: string, mtimeMs: number)
 export async function parseCampaignRankings(
   logDirectory: string,
 ): Promise<CampaignRankings> {
-  let entries: fs.Dirent[];
+  let entries: Dirent[];
 
   try {
     entries = await fs.readdir(logDirectory, { withFileTypes: true });

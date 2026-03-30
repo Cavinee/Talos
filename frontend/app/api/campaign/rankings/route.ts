@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server.js";
 
-import { getCampaignRankings as _getCampaignRankings } from "../../../../lib/campaign/rankings-parser.ts";
+import { rankingsService } from "./service.ts";
 
 export const runtime = "nodejs";
-
-// Exported so tests can monkey-patch this object's method.
-export const rankingsService = {
-  getCampaignRankings: _getCampaignRankings,
-};
 
 export async function GET() {
   try {

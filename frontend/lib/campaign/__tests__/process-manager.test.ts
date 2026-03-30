@@ -103,6 +103,7 @@ function createManager(options: {
     readRuntimeState: store.read,
     writeRuntimeState: store.write,
     inspectContainer: async () => ({ healthy: false }),
+    inspectChainEndpoint: async () => ({ healthy: true }),
     isProcessAlive: () => false,
     startDetachedService: async () => ({
       pid: 999,
@@ -602,6 +603,95 @@ test("status polling preserves starting services until docker becomes healthy", 
 
   assert.equal(snapshot.local_chain.status, "starting");
   assert.equal(store.current().local_chain?.status, "starting");
+});
+
+test("docker-backed local chain is marked failed when the container is up but the rpc endpoint is unhealthy", async () => {
+  const { manager, store } = createManager({
+    services: [
+      {
+        key: "local_chain",
+        label: "Local Chain",
+        scriptRelativePath: "subnet/scripts/localnet/02_start_chain.sh",
+        commandLabel: "docker run local_chain",
+        healthCheck: "docker",
+        containerName: "local_chain",
+      },
+    ],
+    state: {
+      local_chain: {
+        service: "local_chain",
+        label: "Local Chain",
+        status: "running",
+        launcher: "docker",
+        containerName: "local_chain",
+        containerId: "container-123",
+        scriptPath:
+          "/Users/cavine/Code/Talos/subnet/scripts/localnet/02_start_chain.sh",
+        launchedAt: "2026-03-30T10:00:00.000Z",
+        commandLabel: "docker run local_chain",
+      },
+    },
+    overrides: {
+      inspectContainer: async () => ({
+        healthy: true,
+        containerId: "container-123",
+      }),
+      inspectChainEndpoint: async () => ({
+        healthy: false,
+        lastKnownError: "ws://127.0.0.1:9945 closed the websocket handshake",
+      }),
+    } as Partial<CampaignManagerDependencies>,
+  });
+
+  const snapshot = await manager.getCampaignServiceSnapshot();
+
+  assert.equal(snapshot.local_chain.status, "failed");
+  assert.match(
+    snapshot.local_chain.lastKnownError ?? "",
+    /closed the websocket handshake/i,
+  );
+  assert.equal(store.current().local_chain?.status, "failed");
+});
+
+test("launch stops before miners and validators when the local chain rpc endpoint is unhealthy", async () => {
+  let detachedLaunchCalls = 0;
+  const { manager, store } = createManager({
+    services: createDefaultServices(),
+    overrides: {
+      startDockerService: async () => ({
+        containerId: "container-123",
+        launchedAt: "2026-03-30T10:00:00.000Z",
+      }),
+      inspectContainer: async () => ({
+        healthy: true,
+        containerId: "container-123",
+      }),
+      inspectChainEndpoint: async () => ({
+        healthy: false,
+        lastKnownError: "ws://127.0.0.1:9945 returned an invalid response",
+      }),
+      startDetachedService: async () => {
+        detachedLaunchCalls += 1;
+        return {
+          pid: 9999,
+          launchedAt: "2026-03-30T10:00:00.000Z",
+          logPath: "/tmp/unused.log",
+        };
+      },
+    } as Partial<CampaignManagerDependencies>,
+  });
+
+  await manager.launchCampaignServices();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const snapshot = await manager.getCampaignServiceSnapshot();
+
+  assert.equal(detachedLaunchCalls, 0);
+  assert.equal(snapshot.local_chain.status, "failed");
+  assert.equal(snapshot.red_miner_1.status, "stopped");
+  assert.equal(snapshot.blue_miner_1.status, "stopped");
+  assert.equal(snapshot.validator_1.status, "stopped");
+  assert.equal(store.current().red_miner_1?.status, "stopped");
 });
 
 test("status polling marks process startup without a pid as failed after the starting timeout elapses", async () => {

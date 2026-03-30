@@ -8,6 +8,7 @@ from bittensor import Subtensor, Config, Axon
 from bittensor.utils.btlogging import logging
 from bittensor_wallet import Wallet
 
+from bittensor_network import resolve_subtensor_target
 from protocol import RoleDiscoverySynapse, BlueTeamSynapse
 from mock_data import BLUE_MINER_ACCURACY, get_mock_blue_classification
 # from shield_model import ShieldModel  # Shield implementation (commented out for mock testing)
@@ -94,7 +95,10 @@ class BlueMiner:
         logging.info(f"Wallet: {self.wallet}")
 
         # Initialize subtensor.
-        self.subtensor = Subtensor(config=self.config)
+        self.subtensor = Subtensor(
+            network=resolve_subtensor_target(self.config),
+            config=self.config,
+        )
         logging.info(f"Subtensor: {self.subtensor}")
 
         # Initialize metagraph.
@@ -235,6 +239,19 @@ class BlueMiner:
         )
         logging.info(f"Axon: {self.axon}")
 
+    def _network_status_log(self) -> str:
+        block = self.metagraph.block.item()
+        incentive = "unavailable"
+        if self.my_subnet_uid is not None:
+            incentives = getattr(self.metagraph, "I", None)
+            try:
+                if incentives is not None and self.my_subnet_uid < len(incentives):
+                    incentive = incentives[self.my_subnet_uid]
+            except TypeError:
+                incentive = "unavailable"
+
+        return f"Block: {block} | Incentive: {incentive}"
+
     def run(self):
         self.setup_axon()
 
@@ -246,11 +263,7 @@ class BlueMiner:
                 # Periodically update our knowledge of the network graph.
                 if step % 60 == 0:
                     self.metagraph.sync()
-                    log = (
-                        f"Block: {self.metagraph.block.item()} | "
-                        f"Incentive: {self.metagraph.I[self.my_subnet_uid]}"
-                    )
-                    logging.info(log)
+                    logging.info(self._network_status_log())
                 # Shield implementation (commented out for mock testing)
                 # if step % self.model_poll_interval_sec == 0:
                 #     self._maybe_fine_tune_shield()

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { GET, rankingsService } from "../rankings/route.ts";
+import { GET } from "../rankings/route.ts";
+import { rankingsService } from "../rankings/service.ts";
 import type { CampaignRankings } from "../../../../lib/campaign/rankings-parser.ts";
 
 const sampleRankings: CampaignRankings = {

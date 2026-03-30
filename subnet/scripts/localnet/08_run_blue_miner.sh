@@ -73,6 +73,7 @@ fi
 
 REQUESTED_PYTHON_BIN="${PYTHON_BIN:-}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
+CHAIN_ENDPOINT="${CHAIN_ENDPOINT:-ws://127.0.0.1:9945}"
 
 cd "${SUBNET_DIR}"
 PYTHON_BIN="$(resolve_python_bin)"
@@ -83,7 +84,7 @@ PORT=$((8095 + INDEX))
 "${PYTHON_BIN}" blue_miner.py \
   --wallet.name test-blue-miner-${INDEX} \
   --wallet.hotkey default \
-  --subtensor.network local \
+  --subtensor.chain_endpoint "${CHAIN_ENDPOINT}" \
   --netuid 2 \
   --axon.port "${PORT}" \
   --miner-index "${INDEX}"

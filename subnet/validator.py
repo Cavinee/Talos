@@ -13,6 +13,7 @@ from bittensor import Subtensor, Config, Dendrite
 from bittensor.utils.btlogging import logging
 from bittensor_wallet import Wallet
 
+from bittensor_network import resolve_subtensor_target
 # from llm_client import LLMClient
 from mock_data import mock_judge_output
 from protocol import RoleDiscoverySynapse, RedTeamSynapse, BlueTeamSynapse
@@ -159,7 +160,10 @@ class Validator:
         logging.info(f"Wallet: {self.wallet}")
 
         # Initialize subtensor.
-        self.subtensor = Subtensor(config=self.config)
+        self.subtensor = Subtensor(
+            network=resolve_subtensor_target(self.config),
+            config=self.config,
+        )
         logging.info(f"Subtensor: {self.subtensor}")
 
         # Initialize dendrite.
@@ -206,6 +210,34 @@ class Validator:
         )
         return minimum_red, minimum_blue
 
+    def _role_discovery_wait_message(
+        self,
+        attempt: int,
+        max_attempts: int,
+        red_count: int,
+        blue_count: int,
+        minimum_red: int,
+        minimum_blue: int,
+    ) -> str:
+        return (
+            f"Role discovery attempt {attempt}/{max_attempts} found "
+            f"{red_count} red and {blue_count} blue miners; "
+            f"waiting for {minimum_red} red and {minimum_blue} blue."
+        )
+
+    def _missing_miner_set_message(
+        self,
+        red_count: int,
+        blue_count: int,
+        minimum_red: int,
+        minimum_blue: int,
+    ) -> str:
+        return (
+            "Could not find the required miner set. "
+            f"Found {red_count} red and {blue_count} blue, "
+            f"required {minimum_red} red and {minimum_blue} blue. Exiting."
+        )
+
     def wait_for_role_map(self) -> dict[int, str]:
         minimum_red, minimum_blue = self.required_role_counts()
         max_attempts = getattr(
@@ -230,13 +262,14 @@ class Validator:
                 return latest_role_map
 
             logging.info(
-                "Role discovery attempt %s/%s found %s red and %s blue miners; waiting for %s red and %s blue.",
-                attempt,
-                max_attempts,
-                red_count,
-                blue_count,
-                minimum_red,
-                minimum_blue,
+                self._role_discovery_wait_message(
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    red_count=red_count,
+                    blue_count=blue_count,
+                    minimum_red=minimum_red,
+                    minimum_blue=minimum_blue,
+                )
             )
             if attempt < max_attempts:
                 time.sleep(poll_interval)
@@ -345,11 +378,12 @@ class Validator:
 
             if len(red_uids) < minimum_red or len(blue_uids) < minimum_blue:
                 logging.error(
-                    "Could not find the required miner set. Found %s red and %s blue, required %s red and %s blue. Exiting.",
-                    len(red_uids),
-                    len(blue_uids),
-                    minimum_red,
-                    minimum_blue,
+                    self._missing_miner_set_message(
+                        red_count=len(red_uids),
+                        blue_count=len(blue_uids),
+                        minimum_red=minimum_red,
+                        minimum_blue=minimum_blue,
+                    )
                 )
                 return
 

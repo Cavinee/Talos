@@ -126,7 +126,189 @@ def import_validator_with_stubs():
     return importlib.import_module("validator")
 
 
+def import_miner_with_stubs(module_name: str):
+    for candidate in [
+        module_name,
+        "protocol",
+        "bittensor",
+        "bittensor.utils",
+        "bittensor.utils.btlogging",
+        "bittensor_wallet",
+    ]:
+        sys.modules.pop(candidate, None)
+
+    bittensor = types.ModuleType("bittensor")
+
+    class Subtensor:
+        @staticmethod
+        def add_args(parser):
+            return None
+
+    class Config:
+        def __init__(self, parser):
+            self.logging = SimpleNamespace(logging_dir="/tmp")
+            self.wallet = SimpleNamespace(name="test-miner", hotkey="default")
+            self.netuid = 2
+            self.miner_index = 1
+            self.subtensor = SimpleNamespace(network="local")
+            self.axon = SimpleNamespace(port=8091)
+
+    class Axon:
+        @staticmethod
+        def add_args(parser):
+            return None
+
+        def __init__(self, wallet=None, config=None):
+            self.wallet = wallet
+            self.config = config
+
+    bittensor.Subtensor = Subtensor
+    bittensor.Config = Config
+    bittensor.Axon = Axon
+
+    btlogging = types.ModuleType("bittensor.utils.btlogging")
+
+    class DummyLogging:
+        @staticmethod
+        def add_args(parser):
+            return None
+
+        @staticmethod
+        def info(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def error(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def warning(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def success(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def trace(*args, **kwargs):
+            return None
+
+    btlogging.logging = DummyLogging
+
+    bittensor_utils = types.ModuleType("bittensor.utils")
+    bittensor_utils.btlogging = btlogging
+
+    bittensor_wallet = types.ModuleType("bittensor_wallet")
+
+    class Wallet:
+        @staticmethod
+        def add_args(parser):
+            return None
+
+        def __init__(self, config=None, name=None):
+            self.name = name or "test-miner"
+            self.hotkey = SimpleNamespace(ss58_address=f"{self.name}-hotkey")
+            self.coldkey = SimpleNamespace(ss58_address=f"{self.name}-coldkey")
+
+    bittensor_wallet.Wallet = Wallet
+
+    protocol = types.ModuleType("protocol")
+
+    class RoleDiscoverySynapse:
+        def __init__(self, role=None):
+            self.role = role
+            self.dendrite = SimpleNamespace(hotkey="known-hotkey")
+
+    class RedTeamSynapse:
+        def __init__(self, system_prompt=None, target_category=None, prompts=None):
+            self.system_prompt = system_prompt
+            self.target_category = target_category
+            self.prompts = prompts
+            self.dendrite = SimpleNamespace(hotkey="known-hotkey")
+
+    class BlueTeamSynapse:
+        def __init__(self, prompts=None, classifications=None):
+            self.prompts = prompts
+            self.classifications = classifications
+            self.dendrite = SimpleNamespace(hotkey="known-hotkey")
+
+    protocol.RoleDiscoverySynapse = RoleDiscoverySynapse
+    protocol.RedTeamSynapse = RedTeamSynapse
+    protocol.BlueTeamSynapse = BlueTeamSynapse
+
+    sys.modules["bittensor"] = bittensor
+    sys.modules["bittensor.utils"] = bittensor_utils
+    sys.modules["bittensor.utils.btlogging"] = btlogging
+    sys.modules["bittensor_wallet"] = bittensor_wallet
+    sys.modules["protocol"] = protocol
+
+    if str(SUBNET_DIR) not in sys.path:
+        sys.path.insert(0, str(SUBNET_DIR))
+
+    return importlib.import_module(module_name)
+
+
 class LocalnetTopologyRegressionTests(unittest.TestCase):
+    def test_red_miner_status_log_handles_short_metagraph_incentive_arrays(self):
+        red_miner_module = import_miner_with_stubs("red_miner")
+        miner = red_miner_module.RedMiner.__new__(red_miner_module.RedMiner)
+        miner.metagraph = SimpleNamespace(
+            block=SimpleNamespace(item=lambda: 123),
+            I=[0.1, 0.2, 0.3, 0.4],
+        )
+        miner.my_subnet_uid = 4
+
+        log_message = miner._network_status_log()
+
+        self.assertIn("Block: 123", log_message)
+        self.assertIn("Incentive: unavailable", log_message)
+
+    def test_blue_miner_status_log_handles_short_metagraph_incentive_arrays(self):
+        blue_miner_module = import_miner_with_stubs("blue_miner")
+        miner = blue_miner_module.BlueMiner.__new__(blue_miner_module.BlueMiner)
+        miner.metagraph = SimpleNamespace(
+            block=SimpleNamespace(item=lambda: 456),
+            I=[0.1] * 9,
+        )
+        miner.my_subnet_uid = 9
+
+        log_message = miner._network_status_log()
+
+        self.assertIn("Block: 456", log_message)
+        self.assertIn("Incentive: unavailable", log_message)
+
+    def test_validator_formats_role_discovery_wait_message_without_percent_placeholders(self):
+        validator_module = import_validator_with_stubs()
+        validator = validator_module.Validator.__new__(validator_module.Validator)
+
+        message = validator._role_discovery_wait_message(
+            attempt=30,
+            max_attempts=30,
+            red_count=0,
+            blue_count=0,
+            minimum_red=5,
+            minimum_blue=5,
+        )
+
+        self.assertIn("attempt 30/30", message)
+        self.assertIn("found 0 red and 0 blue", message)
+        self.assertNotIn("%s", message)
+
+    def test_validator_formats_missing_miner_set_message_without_percent_placeholders(self):
+        validator_module = import_validator_with_stubs()
+        validator = validator_module.Validator.__new__(validator_module.Validator)
+
+        message = validator._missing_miner_set_message(
+            red_count=0,
+            blue_count=0,
+            minimum_red=5,
+            minimum_blue=5,
+        )
+
+        self.assertIn("Found 0 red and 0 blue", message)
+        self.assertIn("required 5 red and 5 blue", message)
+        self.assertNotIn("%s", message)
+
     def test_mock_red_prompts_vary_by_skill_level_for_attack_categories(self):
         from mock_data import get_mock_red_prompts, mock_judge_output
 

@@ -11,18 +11,13 @@ interface RankingsResponse {
 
 const DEFAULT_POLL_INTERVAL_MS = 3000;
 
-interface LeaderboardPageProps {
-  pollIntervalMs?: number;
-}
-
-export default function LeaderboardPage({
-  pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
-}: LeaderboardPageProps) {
+export default function LeaderboardPage() {
   const [red, setRed] = useState<MinerRanking[]>([]);
   const [blue, setBlue] = useState<MinerRanking[]>([]);
   const mountedRef = useRef(true);
   const timerRef = useRef<number | null>(null);
   const fetchRef = useRef<() => Promise<void>>(async () => {});
+  const pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
 
   async function fetchRankings() {
     try {
