@@ -1,6 +1,6 @@
 # Live Subnet Dashboard Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Scale localnet to 3 validators + 10 miners, fix emissions, and replace all frontend mock data with live data polled from the running subnet.
 
@@ -408,7 +408,7 @@ git commit -m "feat: write rich threat entries to threat_stream.json per epoch"
 - Modify: `subnet/validator.py`
 - Modify: `subnet/tests/test_validator_output.py`
 
-- [ ] **Step 1: Add failing tests for `write_rankings`**
+- [x] **Step 1: Add failing tests for `write_rankings`**
 
 Append to `subnet/tests/test_validator_output.py`:
 
@@ -493,7 +493,7 @@ class TestWriteRankings(unittest.TestCase):
             self.assertIn("avgF1", blue)
 ```
 
-- [ ] **Step 2: Run to confirm they fail**
+- [x] **Step 2: Run to confirm they fail**
 
 ```bash
 cd /Users/cavine/Code/Talos/subnet
@@ -502,7 +502,7 @@ python -m pytest tests/test_validator_output.py::TestWriteRankings -v
 
 Expected: `AttributeError: module 'validator' has no attribute 'write_rankings'`
 
-- [ ] **Step 3: Add `write_rankings` to `validator.py`**
+- [x] **Step 3: Add `write_rankings` to `validator.py`**
 
 Add after `append_threat_entries`:
 
@@ -599,7 +599,7 @@ def write_rankings(
             fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 ```
 
-- [ ] **Step 4: Extend `run_epoch` to return precision and recall**
+- [x] **Step 4: Extend `run_epoch` to return precision and recall**
 
 At the end of `run_epoch`, replace:
 
@@ -625,7 +625,7 @@ with:
         return red_score, blue_precision, blue_recall, blue_f1
 ```
 
-- [ ] **Step 5: Update `run` to unpack the new return value and accumulate blue stats**
+- [x] **Step 5: Update `run` to unpack the new return value and accumulate blue stats**
 
 In `run`, find the `score_accumulator` initialisation block:
 
@@ -682,7 +682,7 @@ Replace with:
                 )
 ```
 
-- [ ] **Step 6: Call `write_rankings` in `run` after weight setting**
+- [x] **Step 6: Call `write_rankings` in `run` after weight setting**
 
 After the `if success: logging.success(...)` block, add:
 
@@ -692,7 +692,7 @@ After the `if success: logging.success(...)` block, add:
             logging.info(f"Rankings written to {rankings_path}")
 ```
 
-- [ ] **Step 7: Run all validator output tests**
+- [x] **Step 7: Run all validator output tests**
 
 ```bash
 cd /Users/cavine/Code/Talos/subnet
@@ -701,7 +701,7 @@ python -m pytest tests/test_validator_output.py -v
 
 Expected: all 11 tests pass.
 
-- [ ] **Step 8: Fix topology regression tests for new `run_epoch` return signature**
+- [x] **Step 8: Fix topology regression tests for new `run_epoch` return signature**
 
 `run_epoch` now returns 4 values instead of 2. Update `subnet/tests/test_localnet_topology_regressions.py` — find every line that reads:
 
@@ -723,7 +723,7 @@ python -m pytest tests/test_localnet_topology_regressions.py -v
 
 Expected: all pass.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 cd /Users/cavine/Code/Talos
@@ -739,7 +739,7 @@ git commit -m "feat: write rankings.json after each validator run"
 - Create: `frontend/app/api/threats/route.ts`
 - Create: `frontend/app/api/threats/route.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `frontend/app/api/threats/route.test.ts`:
 
@@ -807,7 +807,7 @@ describe("GET /api/threats", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm it fails**
+- [x] **Step 2: Run to confirm it fails**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -816,7 +816,7 @@ npx vitest run app/api/threats/route.test.ts
 
 Expected: `Cannot find module './route'`
 
-- [ ] **Step 3: Implement the route**
+- [x] **Step 3: Implement the route**
 
 Create `frontend/app/api/threats/route.ts`:
 
@@ -842,7 +842,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -851,7 +851,7 @@ npx vitest run app/api/threats/route.test.ts
 
 Expected: all 3 pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/cavine/Code/Talos
@@ -867,7 +867,7 @@ git commit -m "feat: add /api/threats Next.js route"
 - Create: `frontend/app/api/rankings/route.ts`
 - Create: `frontend/app/api/rankings/route.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `frontend/app/api/rankings/route.test.ts`:
 
@@ -926,7 +926,7 @@ describe("GET /api/rankings", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm it fails**
+- [x] **Step 2: Run to confirm it fails**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -935,7 +935,7 @@ npx vitest run app/api/rankings/route.test.ts
 
 Expected: `Cannot find module './route'`
 
-- [ ] **Step 3: Implement the route**
+- [x] **Step 3: Implement the route**
 
 Create `frontend/app/api/rankings/route.ts`:
 
@@ -965,7 +965,7 @@ export async function GET(): Promise<NextResponse> {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -974,7 +974,7 @@ npx vitest run app/api/rankings/route.test.ts
 
 Expected: both pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/cavine/Code/Talos
@@ -990,7 +990,7 @@ git commit -m "feat: add /api/rankings Next.js route"
 - Create: `frontend/hooks/useLiveData.ts`
 - Create: `frontend/hooks/useLiveData.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `frontend/hooks/useLiveData.test.ts`:
 
@@ -1073,7 +1073,7 @@ describe("useLiveData", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm it fails**
+- [x] **Step 2: Run to confirm it fails**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -1082,7 +1082,7 @@ npx vitest run hooks/useLiveData.test.ts
 
 Expected: `Cannot find module './useLiveData'`
 
-- [ ] **Step 3: Implement the hook**
+- [x] **Step 3: Implement the hook**
 
 Create `frontend/hooks/useLiveData.ts`:
 
@@ -1137,7 +1137,7 @@ export function useLiveData<T>(
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -1146,7 +1146,7 @@ npx vitest run hooks/useLiveData.test.ts
 
 Expected: all 4 pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/cavine/Code/Talos
@@ -1162,7 +1162,7 @@ git commit -m "feat: add useLiveData polling hook"
 - Modify: `frontend/app/dashboard/page.tsx`
 - Modify: `frontend/app/dashboard/page.test.tsx`
 
-- [ ] **Step 1: Update the test to mock fetch**
+- [x] **Step 1: Update the test to mock fetch**
 
 Replace the contents of `frontend/app/dashboard/page.test.tsx` with:
 
@@ -1203,7 +1203,7 @@ describe("DashboardPage", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm it still passes before page changes**
+- [x] **Step 2: Run to confirm it still passes before page changes**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -1212,7 +1212,7 @@ npx vitest run app/dashboard/page.test.tsx
 
 Expected: pass (still using mock data at this point).
 
-- [ ] **Step 3: Rewrite `frontend/app/dashboard/page.tsx`**
+- [x] **Step 3: Rewrite `frontend/app/dashboard/page.tsx`**
 
 Replace the entire file with:
 
@@ -1325,7 +1325,7 @@ export default function DashboardPage() {
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -1334,7 +1334,7 @@ npx vitest run app/dashboard/page.test.tsx
 
 Expected: pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/cavine/Code/Talos
@@ -1349,7 +1349,7 @@ git commit -m "feat: wire dashboard to live /api/threats poll"
 **Files:**
 - Modify: `frontend/app/dashboard/leaderboard/page.tsx`
 
-- [ ] **Step 1: Rewrite `frontend/app/dashboard/leaderboard/page.tsx`**
+- [x] **Step 1: Rewrite `frontend/app/dashboard/leaderboard/page.tsx`**
 
 Replace the entire file with:
 
@@ -1406,7 +1406,7 @@ export default function LeaderboardPage() {
 }
 ```
 
-- [ ] **Step 2: Run all frontend tests**
+- [x] **Step 2: Run all frontend tests**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -1415,7 +1415,7 @@ npx vitest run
 
 Expected: all pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/cavine/Code/Talos
@@ -1430,7 +1430,7 @@ git commit -m "feat: wire leaderboard to live /api/rankings poll"
 **Files:**
 - Modify: `frontend/data/mock.ts`
 
-- [ ] **Step 1: Trim `redFaction` and `blueFaction` to 5 entries**
+- [x] **Step 1: Trim `redFaction` and `blueFaction` to 5 entries**
 
 In `frontend/data/mock.ts`, replace the `redFaction` export:
 
@@ -1456,7 +1456,7 @@ export const blueFaction: BlueMiner[] = [
 ];
 ```
 
-- [ ] **Step 2: Run all tests**
+- [x] **Step 2: Run all tests**
 
 ```bash
 cd /Users/cavine/Code/Talos/frontend
@@ -1467,7 +1467,7 @@ python -m pytest tests/ -v
 
 Expected: all pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/cavine/Code/Talos
