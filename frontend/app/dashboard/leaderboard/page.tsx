@@ -1,7 +1,71 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
 import FactionTable from "@/components/leaderboard/FactionTable";
-import { redFaction, blueFaction } from "@/data/mock";
+import type { CampaignRankings, MinerRanking } from "@/lib/campaign/rankings-parser";
+
+interface RankingsResponse {
+  rankings: CampaignRankings;
+}
+
+const DEFAULT_POLL_INTERVAL_MS = 3000;
 
 export default function LeaderboardPage() {
+  const [red, setRed] = useState<MinerRanking[]>([]);
+  const [blue, setBlue] = useState<MinerRanking[]>([]);
+  const mountedRef = useRef(true);
+  const timerRef = useRef<number | null>(null);
+  const fetchRef = useRef<() => Promise<void>>(async () => {});
+  const pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+
+  async function fetchRankings() {
+    try {
+      const response = await fetch("/api/campaign/rankings");
+      const payload = (await response.json()) as RankingsResponse;
+
+      if (!mountedRef.current) {
+        return;
+      }
+
+      setRed(payload.rankings.red ?? []);
+      setBlue(payload.rankings.blue ?? []);
+    } catch {
+      // silently ignore fetch errors — stale data stays displayed
+    }
+  }
+
+  fetchRef.current = fetchRankings;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void fetchRef.current();
+
+    timerRef.current = window.setInterval(() => {
+      void fetchRef.current();
+    }, pollIntervalMs);
+
+    return () => {
+      mountedRef.current = false;
+      if (timerRef.current !== null) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [pollIntervalMs]);
+
+  const isEmpty = red.length === 0 && blue.length === 0;
+
+  if (isEmpty) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-text-secondary text-sm">
+          No rankings yet — waiting for validators to complete an epoch.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex gap-6">
       <div className="flex-1">
@@ -10,12 +74,16 @@ export default function LeaderboardPage() {
           accentColor="#c45a5a"
           columns={[
             { key: "rank", label: "#" },
-            { key: "uid", label: "Miner UID" },
-            { key: "severity", label: "Severity" },
-            { key: "novelty", label: "Novelty" },
-            { key: "combinedScore", label: "Combined" },
+            { key: "uid", label: "UID" },
+            { key: "breachRate", label: "Breach Rate" },
+            { key: "weight", label: "Weight" },
           ]}
-          data={redFaction}
+          data={red.map((r) => ({
+            rank: r.rank,
+            uid: r.uid,
+            breachRate: (r.avgScore * 100).toFixed(1) + "%",
+            weight: (r.normalizedWeight * 100).toFixed(1) + "%",
+          }))}
         />
       </div>
       <div className="flex-1">
@@ -24,12 +92,16 @@ export default function LeaderboardPage() {
           accentColor="#5a7ac4"
           columns={[
             { key: "rank", label: "#" },
-            { key: "uid", label: "Validator UID" },
-            { key: "recall", label: "Recall %" },
-            { key: "precision", label: "Precision %" },
-            { key: "latency", label: "Latency (ms)" },
+            { key: "uid", label: "UID" },
+            { key: "f1Score", label: "F1 Score" },
+            { key: "weight", label: "Weight" },
           ]}
-          data={blueFaction}
+          data={blue.map((r) => ({
+            rank: r.rank,
+            uid: r.uid,
+            f1Score: (r.avgScore * 100).toFixed(1) + "%",
+            weight: (r.normalizedWeight * 100).toFixed(1) + "%",
+          }))}
         />
       </div>
     </div>

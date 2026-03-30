@@ -26,8 +26,8 @@ const config: Config = {
         "pulse-chip": "pulse-chip 2s ease-in-out infinite",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-jetbrains)", "monospace"],
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
       },
     },
   },

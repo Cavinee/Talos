@@ -20,26 +20,36 @@ coldkey_address() {
   sed -nE 's/.*"ss58Address":"([^"]+)".*/\1/p' "${coldkey_file}"
 }
 
+# Fund sn-creator
 "${BTCLI}" wallet transfer \
   --wallet-name alice \
   --destination "$(coldkey_address sn-creator)" \
   --amount "${SN_CREATOR_TAO}" \
   --network "${NETWORK}"
 
-"${BTCLI}" wallet transfer \
-  --wallet-name alice \
-  --destination "$(coldkey_address test-validator)" \
-  --amount "${VALIDATOR_TAO}" \
-  --network "${NETWORK}"
+# Fund 3 validators (5000 TAO each)
+for i in {1..3}; do
+  "${BTCLI}" wallet transfer \
+    --wallet-name alice \
+    --destination "$(coldkey_address test-validator-${i})" \
+    --amount "${VALIDATOR_TAO}" \
+    --network "${NETWORK}"
+done
 
-"${BTCLI}" wallet transfer \
-  --wallet-name alice \
-  --destination "$(coldkey_address test-red-miner)" \
-  --amount "${MINER_TAO}" \
-  --network "${NETWORK}"
+# Fund 5 red miners (50 TAO each)
+for i in {1..5}; do
+  "${BTCLI}" wallet transfer \
+    --wallet-name alice \
+    --destination "$(coldkey_address test-red-miner-${i})" \
+    --amount "${MINER_TAO}" \
+    --network "${NETWORK}"
+done
 
-"${BTCLI}" wallet transfer \
-  --wallet-name alice \
-  --destination "$(coldkey_address test-blue-miner)" \
-  --amount "${MINER_TAO}" \
-  --network "${NETWORK}"
+# Fund 5 blue miners (50 TAO each)
+for i in {1..5}; do
+  "${BTCLI}" wallet transfer \
+    --wallet-name alice \
+    --destination "$(coldkey_address test-blue-miner-${i})" \
+    --amount "${MINER_TAO}" \
+    --network "${NETWORK}"
+done

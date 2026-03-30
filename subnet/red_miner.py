@@ -8,8 +8,10 @@ from bittensor import Subtensor, Config, Axon
 from bittensor.utils.btlogging import logging
 from bittensor_wallet import Wallet
 
+from bittensor_network import resolve_subtensor_target
 from protocol import RoleDiscoverySynapse, RedTeamSynapse
-from llm_client import LLMClient
+# from llm_client import LLMClient  # LLM implementation (commented out for mock testing)
+from mock_data import RED_MINER_SKILLS, get_mock_red_prompts
 
 
 class RedMiner:
@@ -23,7 +25,8 @@ class RedMiner:
         self.config = self.get_config()
         self.setup_logging()
         self.setup_bittensor_objects()
-        self.llm = LLMClient()
+        # self.llm = LLMClient()  # LLM implementation (commented out for mock testing)
+        self.skill_level = RED_MINER_SKILLS.get(self.config.miner_index, 0.5)
 
     def get_config(self):
         # Set up the configuration parser
@@ -31,6 +34,10 @@ class RedMiner:
         # Adds override arguments for network and netuid.
         parser.add_argument(
             "--netuid", type=int, default=1, help="The chain subnet uid."
+        )
+        # Adds miner index for skill level lookup.
+        parser.add_argument(
+            "--miner-index", type=int, default=1, help="Miner index (1-5) for skill level lookup."
         )
         # Adds subtensor specific arguments.
         Subtensor.add_args(parser)
@@ -71,7 +78,10 @@ class RedMiner:
         logging.info(f"Wallet: {self.wallet}")
 
         # Initialize subtensor.
-        self.subtensor = Subtensor(config=self.config)
+        self.subtensor = Subtensor(
+            network=resolve_subtensor_target(self.config),
+            config=self.config,
+        )
         logging.info(f"Subtensor: {self.subtensor}")
 
         # Initialize metagraph.
@@ -112,8 +122,12 @@ class RedMiner:
         return synapse
 
     def generate_prompts(self, synapse: RedTeamSynapse) -> RedTeamSynapse:
-        prompts = self.llm.generate_adversarial_prompts(
-            system_prompt=synapse.system_prompt,
+        # prompts = self.llm.generate_adversarial_prompts(  # LLM implementation (commented out for mock testing)
+        #     system_prompt=synapse.system_prompt,
+        #     category=synapse.target_category,
+        # )
+        prompts = get_mock_red_prompts(
+            skill_level=self.skill_level,
             category=synapse.target_category,
         )
         synapse.prompts = prompts
@@ -152,6 +166,19 @@ class RedMiner:
         )
         logging.info(f"Axon: {self.axon}")
 
+    def _network_status_log(self) -> str:
+        block = self.metagraph.block.item()
+        incentive = "unavailable"
+        if self.my_subnet_uid is not None:
+            incentives = getattr(self.metagraph, "I", None)
+            try:
+                if incentives is not None and self.my_subnet_uid < len(incentives):
+                    incentive = incentives[self.my_subnet_uid]
+            except TypeError:
+                incentive = "unavailable"
+
+        return f"Block: {block} | Incentive: {incentive}"
+
     def run(self):
         self.setup_axon()
 
@@ -163,11 +190,7 @@ class RedMiner:
                 # Periodically update our knowledge of the network graph.
                 if step % 60 == 0:
                     self.metagraph.sync()
-                    log = (
-                        f"Block: {self.metagraph.block.item()} | "
-                        f"Incentive: {self.metagraph.I[self.my_subnet_uid]}"
-                    )
-                    logging.info(log)
+                    logging.info(self._network_status_log())
                 step += 1
                 time.sleep(1)
 
