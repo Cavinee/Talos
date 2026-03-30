@@ -154,7 +154,10 @@ export async function parseCampaignRankings(
   >();
 
   for (const data of validatorDataList) {
-    // Only include UIDs that have both a role mapping AND an avg_score
+    // Iterate over roleMap (not avgScores) so that UIDs with scores but no role
+    // mapping are intentionally dropped. Roles are only known from epoch pairing
+    // lines ("Epoch N scores - Red X: …, Blue Y: …"), so any UID that never
+    // appeared in such a line has an indeterminate team and must be excluded.
     for (const [uid, role] of data.roleMap) {
       const avgScore = data.avgScores.get(uid);
       if (avgScore === undefined) {

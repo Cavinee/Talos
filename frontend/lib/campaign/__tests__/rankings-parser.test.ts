@@ -8,13 +8,13 @@ import { parseCampaignRankings } from "../rankings-parser.ts";
 
 // ANSI color codes present in real validator logs
 const ANSI_RESET = "\x1b[0m";
-const ANSI_CYAN = "\x1b[34m";
+const ANSI_BLUE = "\x1b[34m";
 const ANSI_RESET2 = "\x1b[39m";
 const ANSI_BOLD_WHITE = "\x1b[1m\x1b[37m";
 const ANSI_RESET3 = "\x1b[39m\x1b[49m";
 
 function makeLogLine(level: string, message: string): string {
-  return `${ANSI_CYAN}2026-03-30 11:45:51.383${ANSI_RESET2} | ${ANSI_BOLD_WHITE}  ${level}  ${ANSI_RESET3}${ANSI_RESET} | bittensor:validator.py:383 | ${message}`;
+  return `${ANSI_BLUE}2026-03-30 11:45:51.383${ANSI_RESET2} | ${ANSI_BOLD_WHITE}  ${level}  ${ANSI_RESET3}${ANSI_RESET} | bittensor:validator.py:383 | ${message}`;
 }
 
 function makeRealisticLog(opts: {
@@ -70,7 +70,18 @@ test("empty directory returns empty rankings", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 2: Single validator log with complete data → correct rankings
+// Test 2: Nonexistent directory → empty rankings
+// ---------------------------------------------------------------------------
+test("nonexistent directory returns empty rankings", async () => {
+  const result = await parseCampaignRankings("/tmp/does-not-exist-" + Date.now());
+  assert.deepEqual(result.red, []);
+  assert.deepEqual(result.blue, []);
+  assert.equal(result.lastUpdatedAt, null);
+  assert.equal(result.validatorsCompleted, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Test 3: Single validator log with complete data → correct rankings
 // ---------------------------------------------------------------------------
 test("single validator log produces correct red and blue rankings", async () => {
   await withTempDir(async (dir) => {
@@ -149,9 +160,12 @@ test("later validator file wins for overlapping UIDs", async () => {
     const newerPath = path.join(dir, "validator_2.log");
 
     await fs.writeFile(olderPath, olderContent, "utf8");
-    // Small delay to ensure different mtime
-    await new Promise((resolve) => setTimeout(resolve, 10));
     await fs.writeFile(newerPath, newerContent, "utf8");
+
+    // Backdate the older file by 2 seconds so mtime ordering is deterministic
+    // regardless of filesystem resolution or write timing.
+    const twoSecondsAgo = (Date.now() - 2000) / 1000;
+    await fs.utimes(olderPath, twoSecondsAgo, twoSecondsAgo);
 
     const result = await parseCampaignRankings(dir);
 
