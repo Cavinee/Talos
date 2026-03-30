@@ -115,9 +115,9 @@ function ThreatDetailsBody({ threat }: { threat: ThreatEntry | null }) {
           {threat.redMiner ? (
             <MinerCard title={`Miner ${threat.redMiner.uid}`} accentClass="bg-danger">
               <DetailRow label="Rank" value={threat.redMiner.rank} />
-              <DetailRow label="Severity" value={threat.redMiner.severity.toFixed(1)} />
-              <DetailRow label="Novelty" value={threat.redMiner.novelty.toFixed(1)} />
-              <DetailRow label="Combined Score" value={threat.redMiner.combinedScore.toFixed(1)} />
+              <DetailRow label="Severity" value={threat.redMiner.severity?.toFixed(1) ?? "—"} />
+              <DetailRow label="Novelty" value={threat.redMiner.novelty?.toFixed(1) ?? "—"} />
+              <DetailRow label="Combined Score" value={threat.redMiner.combinedScore?.toFixed(1) ?? "—"} />
             </MinerCard>
           ) : (
             <MinerFallback title="Red Miner" accentClass="bg-danger" />
@@ -133,9 +133,9 @@ function ThreatDetailsBody({ threat }: { threat: ThreatEntry | null }) {
           {threat.blueMiner ? (
             <MinerCard title={`Miner ${threat.blueMiner.uid}`} accentClass="bg-blue-faction">
               <DetailRow label="Rank" value={threat.blueMiner.rank} />
-              <DetailRow label="Precision" value={`${threat.blueMiner.precision.toFixed(1)}%`} />
-              <DetailRow label="Recall" value={`${threat.blueMiner.recall.toFixed(1)}%`} />
-              <DetailRow label="Latency" value={`${threat.blueMiner.latency.toFixed(1)} ms`} />
+              <DetailRow label="Precision" value={threat.blueMiner.precision != null ? `${threat.blueMiner.precision.toFixed(1)}%` : "—"} />
+              <DetailRow label="Recall" value={threat.blueMiner.recall != null ? `${threat.blueMiner.recall.toFixed(1)}%` : "—"} />
+              <DetailRow label="Latency" value={threat.blueMiner.latency != null ? `${threat.blueMiner.latency.toFixed(1)} ms` : "—"} />
             </MinerCard>
           ) : (
             <MinerFallback title="Blue Miner" accentClass="bg-blue-faction" />
