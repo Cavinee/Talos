@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldAlert, Swords, Code, Trophy } from "lucide-react";
+import { ShieldAlert, Swords, Trophy } from "lucide-react";
 
 const navGroups = [
   {
@@ -15,12 +15,6 @@ const navGroups = [
     label: "OPERATIONS",
     items: [
       { name: "Red Team Campaign", icon: Swords, href: "/dashboard/campaigns" },
-    ],
-  },
-  {
-    label: "DEVELOPMENT",
-    items: [
-      { name: "Integration Hub", icon: Code, href: "/dashboard/integrations" },
     ],
   },
   {

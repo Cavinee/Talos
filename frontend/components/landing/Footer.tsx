@@ -12,9 +12,6 @@ export default function Footer() {
           <span className="text-text-secondary hover:text-text-primary transition-colors text-sm cursor-default">
             GitHub
           </span>
-          <Link href="/dashboard/integrations" className="text-text-secondary hover:text-text-primary transition-colors text-sm">
-            Docs
-          </Link>
           <Link href="/dashboard" className="text-text-secondary hover:text-text-primary transition-colors text-sm">
             Dashboard
           </Link>
