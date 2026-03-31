@@ -31,12 +31,10 @@ export const CAMPAIGN_RUNTIME_STATE_FILE = path.join(
   CAMPAIGN_RUNTIME_DIRECTORY,
   "campaign-services.json",
 );
-const DOCKER_START_TIMEOUT_MS = 60_000;
-const DOCKER_START_POLL_INTERVAL_MS = 250;
-const DOCKER_START_MAX_POLLS = 8;
-const DEFAULT_CAMPAIGN_CHAIN_ENDPOINT =
-  process.env.CHAIN_ENDPOINT?.trim() || "ws://127.0.0.1:9945";
-const RUN_ALL_SCRIPT_RELATIVE_PATH = "subnet/scripts/localnet/10_run_all.sh";
+const SERVICE_START_TIMEOUT_MS = 60_000;
+export const DEFAULT_CAMPAIGN_CHAIN_ENDPOINT =
+  process.env.CHAIN_ENDPOINT?.trim() || "wss://test.finney.opentensor.ai:443";
+const RUN_ALL_SCRIPT_RELATIVE_PATH = "subnet/scripts/testnet/04_run_all.sh";
 const RUN_ALL_STOP_SENTINEL = "All miners and validators stopped.";
 const VALIDATOR_COMPLETION_SENTINEL = "All epochs complete. Validator exiting.";
 const RUN_ALL_LOG_PATH = path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, "run_all.log");
@@ -44,12 +42,6 @@ const RUN_ALL_LOG_PATH = path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, "run_all.log"
 interface ResolvedCampaignServiceDefinition extends CampaignServiceDefinition {
   scriptPath: string;
   logPath?: string;
-}
-
-interface ContainerInspectionResult {
-  healthy: boolean;
-  containerId?: string;
-  lastKnownError?: string;
 }
 
 interface ChainEndpointInspectionResult {
@@ -67,33 +59,16 @@ interface DetachedLaunchResult {
   debugLogTail?: string;
 }
 
-interface DockerLaunchResult {
-  launchedAt: string;
-  containerId?: string;
-}
-
-interface DockerContainerMetadata {
-  exists: boolean;
-  running: boolean;
-  containerId?: string;
-}
-
 export interface CampaignManagerDependencies {
   ensureRuntimeLayout(): Promise<void>;
   readRuntimeState(): Promise<CampaignRuntimeState>;
   writeRuntimeState(state: CampaignRuntimeState): Promise<void>;
-  inspectContainer(
-    service: ResolvedCampaignServiceDefinition,
-  ): Promise<ContainerInspectionResult>;
   inspectChainEndpoint(endpoint: string): Promise<ChainEndpointInspectionResult>;
   isProcessAlive(pid: number): boolean;
   inspectProcessCommand(pid: number): Promise<string | undefined>;
   startDetachedService(
     service: ResolvedCampaignServiceDefinition,
   ): Promise<DetachedLaunchResult>;
-  startDockerService(
-    service: ResolvedCampaignServiceDefinition,
-  ): Promise<DockerLaunchResult>;
   runLaunchPreflight?(): Promise<CampaignPreflightResult>;
   now(): string;
 }
@@ -172,7 +147,6 @@ function createBaseServiceState(
     launcher: service.healthCheck,
     scriptPath: service.scriptPath,
     commandLabel: service.commandLabel,
-    ...(service.containerName ? { containerName: service.containerName } : {}),
     ...(service.logPath ? { logPath: service.logPath } : {}),
   };
 }
@@ -182,18 +156,12 @@ function createDependencies(): CampaignManagerDependencies {
     ensureRuntimeLayout: ensureCampaignRuntimeLayout,
     readRuntimeState: readCampaignRuntimeState,
     writeRuntimeState: writeCampaignRuntimeState,
-    inspectContainer: inspectDockerContainer,
     inspectChainEndpoint,
     isProcessAlive: isProcessAlive,
     inspectProcessCommand,
     startDetachedService: startDetachedService,
-    startDockerService: startDockerService,
     now: () => new Date().toISOString(),
   };
-}
-
-function isLocalChainService(service: ResolvedCampaignServiceDefinition): boolean {
-  return service.key === "local_chain";
 }
 
 function isMinerOrValidatorService(
@@ -256,44 +224,6 @@ async function inspectChainEndpoint(
     });
 
     return { healthy: true };
-  } catch (error) {
-    return {
-      healthy: false,
-      lastKnownError: normalizeError(error),
-    };
-  }
-}
-
-async function inspectDockerContainer(
-  service: ResolvedCampaignServiceDefinition,
-): Promise<ContainerInspectionResult> {
-  if (!service.containerName) {
-    return {
-      healthy: false,
-      lastKnownError: "Missing container name for Docker-backed service.",
-    };
-  }
-
-  try {
-    const { stdout } = await execFileAsync(
-      "docker",
-      ["inspect", "--format", "{{json .State}}", service.containerName],
-      { cwd: repoRoot },
-    );
-    const state = JSON.parse(stdout.trim()) as {
-      Running?: boolean;
-      Status?: string;
-    };
-    const { stdout: idOutput } = await execFileAsync(
-      "docker",
-      ["inspect", "--format", "{{.Id}}", service.containerName],
-      { cwd: repoRoot },
-    );
-
-    return {
-      healthy: Boolean(state.Running) || state.Status === "running",
-      containerId: idOutput.trim() || undefined,
-    };
   } catch (error) {
     return {
       healthy: false,
@@ -463,95 +393,6 @@ async function startDetachedService(
   }
 }
 
-async function inspectDockerContainerMetadata(
-  containerName: string,
-): Promise<DockerContainerMetadata> {
-  try {
-    const { stdout } = await execFileAsync(
-      "docker",
-      [
-        "inspect",
-        "--format",
-        "{{json .State}} {{.Id}}",
-        containerName,
-      ],
-      { cwd: repoRoot },
-    );
-    const trimmed = stdout.trim();
-    const separatorIndex = trimmed.lastIndexOf("} ");
-
-    if (separatorIndex === -1) {
-      return {
-        exists: false,
-        running: false,
-      };
-    }
-
-    const state = JSON.parse(trimmed.slice(0, separatorIndex + 1)) as {
-      Running?: boolean;
-      Status?: string;
-    };
-    const containerId = trimmed.slice(separatorIndex + 2).trim() || undefined;
-
-    return {
-      exists: true,
-      running: Boolean(state.Running) || state.Status === "running",
-      containerId,
-    };
-  } catch {
-    return {
-      exists: false,
-      running: false,
-    };
-  }
-}
-
-async function startDockerService(
-  service: ResolvedCampaignServiceDefinition,
-): Promise<DockerLaunchResult> {
-  const verifyHealthyContainer = async (): Promise<DockerLaunchResult> => {
-    for (let attempt = 0; attempt < DOCKER_START_MAX_POLLS; attempt += 1) {
-      const inspection = await inspectDockerContainer(service);
-
-      if (inspection.healthy) {
-        return {
-          launchedAt: new Date().toISOString(),
-          containerId: inspection.containerId,
-        };
-      }
-
-      if (attempt < DOCKER_START_MAX_POLLS - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, DOCKER_START_POLL_INTERVAL_MS),
-        );
-      }
-    }
-
-    const inspection = await inspectDockerContainer(service);
-    throw new Error(
-      inspection.lastKnownError ??
-        `${service.label} did not become healthy after launch.`,
-    );
-  };
-
-  if (service.containerName) {
-    const container = await inspectDockerContainerMetadata(service.containerName);
-
-    if (container.exists) {
-      if (!container.running) {
-        await execFileAsync("docker", ["start", service.containerName], {
-          cwd: repoRoot,
-        });
-      }
-
-      return verifyHealthyContainer();
-    }
-  }
-
-  await execFileAsync("bash", [service.scriptPath], { cwd: repoRoot });
-  return verifyHealthyContainer();
-}
-
 function normalizeError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -615,7 +456,7 @@ function hasStartingTimedOut(
     return false;
   }
 
-  return nowMs - launchedAtMs >= DOCKER_START_TIMEOUT_MS;
+  return nowMs - launchedAtMs >= SERVICE_START_TIMEOUT_MS;
 }
 
 async function inspectPersistedServiceState(
@@ -627,41 +468,6 @@ async function inspectPersistedServiceState(
     ...createBaseServiceState(service),
     ...persistedState,
   };
-
-  if (service.healthCheck === "docker") {
-    const inspection = await dependencies.inspectContainer(service);
-    const endpointInspection =
-      inspection.healthy && isLocalChainService(service)
-        ? await dependencies.inspectChainEndpoint(DEFAULT_CAMPAIGN_CHAIN_ENDPOINT)
-        : undefined;
-    const healthy =
-      inspection.healthy && (endpointInspection?.healthy ?? true);
-    const dependencyFailed = Boolean(endpointInspection && !endpointInspection.healthy);
-    const healthError =
-      endpointInspection?.lastKnownError ?? inspection.lastKnownError;
-    const startingTimedOut =
-      normalizedState.status === "starting" &&
-      hasStartingTimedOut(normalizedState.launchedAt, dependencies.now());
-
-    return {
-      ...normalizedState,
-      status: healthy
-        ? "running"
-        : dependencyFailed || startingTimedOut || normalizedState.status === "failed"
-          ? "failed"
-          : normalizedState.status === "starting"
-            ? "starting"
-            : "stopped",
-      containerName: service.containerName,
-      containerId: inspection.containerId ?? normalizedState.containerId,
-      lastKnownError: healthy
-        ? undefined
-        : startingTimedOut
-          ? healthError ??
-            `${service.label} did not become healthy after launch.`
-          : normalizedState.lastKnownError ?? healthError,
-    };
-  }
 
   if (!normalizedState.pid) {
     const startingTimedOut =
@@ -743,7 +549,7 @@ async function inspectPersistedServiceState(
     isSharedRunAllState(normalizedState);
   let validatorsCompleted = false;
   if (shouldCheckValidatorLogs) {
-    const validatorLogNames = [1, 2, 3].map(
+    const validatorLogNames = [1].map(
       (i) => path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, `validator_${i}.log`),
     );
     for (const logFile of validatorLogNames) {
@@ -862,7 +668,7 @@ export function createCampaignProcessManager(
     async stopCampaignServices(): Promise<CampaignServiceSnapshot> {
       await dependencies.ensureRuntimeLayout();
       const state = await dependencies.readRuntimeState();
-      const processServices = services.filter(isMinerOrValidatorService);
+      const processServices = services;
 
       const runAllPid = processServices
         .map((s) => state[s.key]?.pid)
@@ -873,23 +679,6 @@ export function createCampaignProcessManager(
           process.kill(runAllPid, "SIGINT");
         } catch {
           // Process may have already exited between the check and the signal.
-        }
-      }
-
-      const localChainService = services.find(isLocalChainService);
-
-      if (
-        localChainService &&
-        state[localChainService.key]?.status === "running"
-      ) {
-        try {
-          await execFileAsync(
-            "docker",
-            ["stop", localChainService.containerName!],
-            { cwd: repoRoot },
-          );
-        } catch {
-          // Container may have already stopped.
         }
       }
 
@@ -964,27 +753,12 @@ export function createCampaignProcessManager(
         }
       }
 
-      const localChainService = services.find(isLocalChainService);
-      const processServices = services.filter(isMinerOrValidatorService);
-      const shouldLaunchLocalChain =
-        localChainService !== undefined &&
-        state[localChainService.key]?.status !== "running";
+      const processServices = services;
       const processServicesToLaunch = processServices.filter(
         (service) => state[service.key]?.status !== "running",
       );
       const shouldLaunchProcessGroup = processServicesToLaunch.length > 0;
       const launchedAt = dependencies.now();
-
-      if (shouldLaunchLocalChain && localChainService) {
-        state[localChainService.key] = {
-          ...createBaseServiceState(localChainService),
-          status: "starting",
-          launchedAt,
-          ...(state[localChainService.key]?.containerId
-            ? { containerId: state[localChainService.key]?.containerId }
-            : {}),
-        };
-      }
 
       if (shouldLaunchProcessGroup) {
         for (const service of processServices) {
@@ -1003,57 +777,6 @@ export function createCampaignProcessManager(
         setTimeout(() => {
           void (async () => {
             try {
-              if (shouldLaunchLocalChain && localChainService) {
-                const latestState = await dependencies.readRuntimeState();
-
-                try {
-                  const launchResult =
-                    await dependencies.startDockerService(localChainService);
-                  const endpointInspection = await dependencies.inspectChainEndpoint(
-                    DEFAULT_CAMPAIGN_CHAIN_ENDPOINT,
-                  );
-
-                  if (!endpointInspection.healthy) {
-                    throw new Error(
-                      endpointInspection.lastKnownError ??
-                        `${localChainService.label} RPC endpoint is unavailable.`,
-                    );
-                  }
-
-                  latestState[localChainService.key] = {
-                    ...createBaseServiceState(localChainService),
-                    status: "starting",
-                    launchedAt: launchResult.launchedAt ?? dependencies.now(),
-                    containerId:
-                      launchResult.containerId ??
-                      latestState[localChainService.key]?.containerId,
-                  };
-                } catch (error) {
-                  latestState[localChainService.key] = {
-                    ...createBaseServiceState(localChainService),
-                    status: "failed",
-                    launchedAt: dependencies.now(),
-                    lastKnownError: normalizeError(error),
-                  };
-
-                  for (const processService of processServices) {
-                    if (latestState[processService.key]?.status === "running") {
-                      continue;
-                    }
-
-                    latestState[processService.key] = {
-                      ...createBaseServiceState(processService),
-                      status: "stopped",
-                    };
-                  }
-
-                  await dependencies.writeRuntimeState(latestState);
-                  return;
-                }
-
-                await dependencies.writeRuntimeState(latestState);
-              }
-
               if (shouldLaunchProcessGroup) {
                 const latestState = await dependencies.readRuntimeState();
                 const runAllService = createRunAllServiceDefinition();
