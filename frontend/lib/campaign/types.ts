@@ -1,8 +1,7 @@
-type CampaignMinerIndex = 1 | 2 | 3 | 4 | 5;
-type CampaignValidatorIndex = 1 | 2 | 3;
+type CampaignMinerIndex = 1;
+type CampaignValidatorIndex = 1;
 
 export type CampaignServiceKey =
-  | "local_chain"
   | `red_miner_${CampaignMinerIndex}`
   | `blue_miner_${CampaignMinerIndex}`
   | `validator_${CampaignValidatorIndex}`;
@@ -13,7 +12,7 @@ export type CampaignServiceStatus =
   | "running"
   | "failed";
 
-export type CampaignLauncherType = "docker" | "process";
+export type CampaignLauncherType = "process";
 
 export interface CampaignServiceState {
   service: CampaignServiceKey;
@@ -24,8 +23,6 @@ export interface CampaignServiceState {
   commandLabel: string;
   launchedAt?: string;
   pid?: number;
-  containerName?: string;
-  containerId?: string;
   logPath?: string;
   lastKnownError?: string;
   debugLogTail?: string;
@@ -46,7 +43,6 @@ export interface CampaignServiceDefinition {
   commandLabel: string;
   healthCheck: CampaignLauncherType;
   launchArguments?: string[];
-  containerName?: string;
   logFileName?: string;
 }
 
