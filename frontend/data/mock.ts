@@ -61,8 +61,8 @@ export interface LandingStat {
 }
 
 export const dashboardMetrics: DashboardMetrics = {
-  totalDetected: 12847,
-  totalBlocked: 12203,
+  totalDetected: 1247,
+  totalBlocked: 1184,
   blockRate: 94.9,
   sdkLatency: 11.3,
   falsePositiveRate: 2.1,
@@ -92,8 +92,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "DAN",
     threatScore: 88,
     blueClassification: "dangerous",
-    redMiner: { uid: "5Fb2d4f7", rank: 2, severity: 9.6, novelty: 9.2, combinedScore: 18.8 },
-    blueMiner: { uid: "5G2b3c4d", rank: 2, precision: 96.7, recall: 97.3, latency: 8.9 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 9.6, novelty: 9.2, combinedScore: 18.8 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 96.7, recall: 97.3, latency: 8.9 },
     status: "blocked",
   },
   {
@@ -105,8 +105,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "role_hijack",
     threatScore: 76,
     blueClassification: "dangerous",
-    redMiner: { uid: "5Fc1e5a3", rank: 3, severity: 9.3, novelty: 9.0, combinedScore: 18.3 },
-    blueMiner: { uid: "5G3c4d5e", rank: 3, precision: 95.6, recall: 96.1, latency: 9.4 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 9.3, novelty: 9.0, combinedScore: 18.3 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 95.6, recall: 96.1, latency: 9.4 },
     status: "blocked",
   },
   {
@@ -117,8 +117,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "prompt_injection",
     threatScore: 12,
     blueClassification: "safe",
-    redMiner: { uid: "5F8f4b6d", rank: 15, severity: 5.8, novelty: 5.5, combinedScore: 11.3 },
-    blueMiner: { uid: "5Gf5c6d7", rank: 15, precision: 82.4, recall: 81.8, latency: 17.8 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 5.8, novelty: 5.5, combinedScore: 11.3 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 82.4, recall: 81.8, latency: 17.8 },
     status: "passed",
   },
   {
@@ -130,8 +130,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "jailbreak",
     threatScore: 95,
     blueClassification: "dangerous",
-    redMiner: { uid: "5Fd4f6b9", rank: 4, severity: 9.1, novelty: 8.7, combinedScore: 17.8 },
-    blueMiner: { uid: "5G4d5e6f", rank: 4, precision: 94.5, recall: 95.0, latency: 10.1 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 9.1, novelty: 8.7, combinedScore: 17.8 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 94.5, recall: 95.0, latency: 10.1 },
     status: "blocked",
   },
   {
@@ -143,8 +143,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "jailbreak",
     threatScore: 81,
     blueClassification: "dangerous",
-    redMiner: { uid: "5Fe3a7c2", rank: 5, severity: 8.8, novelty: 8.5, combinedScore: 17.3 },
-    blueMiner: { uid: "5G5e6f7a", rank: 5, precision: 93.4, recall: 93.8, latency: 10.8 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 8.8, novelty: 8.5, combinedScore: 17.3 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 93.4, recall: 93.8, latency: 10.8 },
     status: "blocked",
   },
   {
@@ -155,8 +155,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "prompt_injection",
     threatScore: 8,
     blueClassification: "safe",
-    redMiner: { uid: "5F7e3a5c", rank: 14, severity: 6.1, novelty: 5.8, combinedScore: 11.9 },
-    blueMiner: { uid: "5Ge4b5c6", rank: 14, precision: 83.5, recall: 83.0, latency: 17.1 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 6.1, novelty: 5.8, combinedScore: 11.9 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 83.5, recall: 83.0, latency: 17.1 },
     status: "passed",
   },
   {
@@ -168,8 +168,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "role_hijack",
     threatScore: 71,
     blueClassification: "unknown",
-    redMiner: { uid: "5F18daf6", rank: 8, severity: 7.9, novelty: 7.6, combinedScore: 15.5 },
-    blueMiner: { uid: "5G8b9c0d", rank: 8, precision: 90.1, recall: 90.2, latency: 12.9 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 7.9, novelty: 7.6, combinedScore: 15.5 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 90.1, recall: 90.2, latency: 12.9 },
     status: "flagged",
   },
   {
@@ -181,8 +181,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "jailbreak",
     threatScore: 89,
     blueClassification: "dangerous",
-    redMiner: { uid: "5Ff6b8d4", rank: 6, severity: 8.5, novelty: 8.2, combinedScore: 16.7 },
-    blueMiner: { uid: "5G6f7a8b", rank: 6, precision: 92.3, recall: 92.6, latency: 11.5 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 8.5, novelty: 8.2, combinedScore: 16.7 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 92.3, recall: 92.6, latency: 11.5 },
     status: "blocked",
   },
   {
@@ -194,8 +194,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "DAN",
     threatScore: 84,
     blueClassification: "dangerous",
-    redMiner: { uid: "5F07c9e5", rank: 7, severity: 8.2, novelty: 7.9, combinedScore: 16.1 },
-    blueMiner: { uid: "5G7a8b9c", rank: 7, precision: 91.2, recall: 91.4, latency: 12.2 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 8.2, novelty: 7.9, combinedScore: 16.1 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 91.2, recall: 91.4, latency: 12.2 },
     status: "blocked",
   },
   {
@@ -206,8 +206,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "prompt_injection",
     threatScore: 5,
     blueClassification: "safe",
-    redMiner: { uid: "5F6d2f4b", rank: 13, severity: 6.4, novelty: 6.1, combinedScore: 12.5 },
-    blueMiner: { uid: "5Gd3a4b5", rank: 13, precision: 84.6, recall: 84.2, latency: 16.4 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 6.4, novelty: 6.1, combinedScore: 12.5 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 84.6, recall: 84.2, latency: 16.4 },
     status: "passed",
   },
   {
@@ -219,8 +219,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "prompt_injection",
     threatScore: 93,
     blueClassification: "dangerous",
-    redMiner: { uid: "5F29eb07", rank: 9, severity: 7.6, novelty: 7.3, combinedScore: 14.9 },
-    blueMiner: { uid: "5G9c0d1e", rank: 9, precision: 89.0, recall: 89.0, latency: 13.6 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 7.6, novelty: 7.3, combinedScore: 14.9 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 89.0, recall: 89.0, latency: 13.6 },
     status: "blocked",
   },
   {
@@ -232,8 +232,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "role_hijack",
     threatScore: 78,
     blueClassification: "dangerous",
-    redMiner: { uid: "5F3afc18", rank: 10, severity: 7.3, novelty: 7.0, combinedScore: 14.3 },
-    blueMiner: { uid: "5Ga0d1e2", rank: 10, precision: 87.9, recall: 87.8, latency: 14.3 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 7.3, novelty: 7.0, combinedScore: 14.3 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 87.9, recall: 87.8, latency: 14.3 },
     status: "blocked",
   },
   {
@@ -244,8 +244,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "prompt_injection",
     threatScore: 3,
     blueClassification: "safe",
-    redMiner: { uid: "5F5c1e3a", rank: 12, severity: 6.7, novelty: 6.4, combinedScore: 13.1 },
-    blueMiner: { uid: "5Gc2f3a4", rank: 12, precision: 85.7, recall: 85.4, latency: 15.7 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 6.7, novelty: 6.4, combinedScore: 13.1 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 85.7, recall: 85.4, latency: 15.7 },
     status: "passed",
   },
   {
@@ -257,8 +257,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "DAN",
     threatScore: 87,
     blueClassification: "dangerous",
-    redMiner: { uid: "5F4b0d29", rank: 11, severity: 7.0, novelty: 6.7, combinedScore: 13.7 },
-    blueMiner: { uid: "5Gb1e2f3", rank: 11, precision: 86.8, recall: 86.6, latency: 15.0 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 7.0, novelty: 6.7, combinedScore: 13.7 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 86.8, recall: 86.6, latency: 15.0 },
     status: "blocked",
   },
   {
@@ -269,8 +269,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "jailbreak",
     threatScore: 45,
     blueClassification: "unknown",
-    redMiner: { uid: "5F5c1e3a", rank: 12, severity: 6.7, novelty: 6.4, combinedScore: 13.1 },
-    blueMiner: { uid: "5Gc2f3a4", rank: 12, precision: 85.7, recall: 85.4, latency: 15.7 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 6.7, novelty: 6.4, combinedScore: 13.1 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 85.7, recall: 85.4, latency: 15.7 },
     status: "flagged",
   },
   {
@@ -282,8 +282,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "role_hijack",
     threatScore: 68,
     blueClassification: "unknown",
-    redMiner: { uid: "5F6d2f4b", rank: 13, severity: 6.4, novelty: 6.1, combinedScore: 12.5 },
-    blueMiner: { uid: "5Gd3a4b5", rank: 13, precision: 84.6, recall: 84.2, latency: 16.4 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 6.4, novelty: 6.1, combinedScore: 12.5 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 84.6, recall: 84.2, latency: 16.4 },
     status: "flagged",
   },
   {
@@ -294,8 +294,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "jailbreak",
     threatScore: 91,
     blueClassification: "dangerous",
-    redMiner: { uid: "5Ff6b8d4", rank: 6, severity: 8.5, novelty: 8.2, combinedScore: 16.7 },
-    blueMiner: { uid: "5G6f7a8b", rank: 6, precision: 92.3, recall: 92.6, latency: 11.5 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 8.5, novelty: 8.2, combinedScore: 16.7 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 92.3, recall: 92.6, latency: 11.5 },
     status: "blocked",
   },
   {
@@ -306,8 +306,8 @@ export const threatStream: ThreatEntry[] = [
     attackType: "prompt_injection",
     threatScore: 7,
     blueClassification: "safe",
-    redMiner: { uid: "5F7e3a5c", rank: 14, severity: 6.1, novelty: 5.8, combinedScore: 11.9 },
-    blueMiner: { uid: "5Ge4b5c6", rank: 14, precision: 83.5, recall: 83.0, latency: 17.1 },
+    redMiner: { uid: "5Fa8c3e1", rank: 1, severity: 6.1, novelty: 5.8, combinedScore: 11.9 },
+    blueMiner: { uid: "5G1a2b3c", rank: 1, precision: 83.5, recall: 83.0, latency: 17.1 },
     status: "passed",
   },
   {
@@ -372,18 +372,10 @@ else:
 
 export const redFaction: RedMiner[] = [
   { rank: 1, uid: "5Fa8c3e1", severity: 9.8, novelty: 9.5, combinedScore: 19.3 },
-  { rank: 2, uid: "5Fb2d4f7", severity: 9.6, novelty: 9.2, combinedScore: 18.8 },
-  { rank: 3, uid: "5Fc1e5a3", severity: 9.3, novelty: 9.0, combinedScore: 18.3 },
-  { rank: 4, uid: "5Fd4f6b9", severity: 9.1, novelty: 8.7, combinedScore: 17.8 },
-  { rank: 5, uid: "5Fe3a7c2", severity: 8.8, novelty: 8.5, combinedScore: 17.3 },
 ];
 
 export const blueFaction: BlueMiner[] = [
   { rank: 1, uid: "5G1a2b3c", recall: 98.5, precision: 97.8, latency: 8.2 },
-  { rank: 2, uid: "5G2b3c4d", recall: 97.3, precision: 96.7, latency: 8.9 },
-  { rank: 3, uid: "5G3c4d5e", recall: 96.1, precision: 95.6, latency: 9.4 },
-  { rank: 4, uid: "5G4d5e6f", recall: 95.0, precision: 94.5, latency: 10.1 },
-  { rank: 5, uid: "5G5e6f7a", recall: 93.8, precision: 93.4, latency: 10.8 },
 ];
 
 export const landingFeatures: LandingFeature[] = [
@@ -394,8 +386,8 @@ export const landingFeatures: LandingFeature[] = [
 ];
 
 export const landingStats: LandingStat[] = [
-  { value: "50,000+", label: "Attacks Simulated" },
-  { value: "256", label: "Active Miners" },
+  { value: "1,200+", label: "Attacks Simulated" },
+  { value: "3", label: "Active Miners" },
   { value: "<12ms", label: "Avg Latency" },
 ];
 
