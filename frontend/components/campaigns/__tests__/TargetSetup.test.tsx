@@ -7,41 +7,22 @@ import { JSDOM } from "jsdom";
 
 import TargetSetup from "../TargetSetup";
 
-const RED_MINER_KEYS = [
-  "red_miner_1",
-  "red_miner_2",
-  "red_miner_3",
-  "red_miner_4",
-  "red_miner_5",
-] as const;
-const BLUE_MINER_KEYS = [
-  "blue_miner_1",
-  "blue_miner_2",
-  "blue_miner_3",
-  "blue_miner_4",
-  "blue_miner_5",
-] as const;
-const VALIDATOR_KEYS = [
-  "validator_1",
-  "validator_2",
-  "validator_3",
-] as const;
+const RED_MINER_KEYS = ["red_miner_1"] as const;
+const BLUE_MINER_KEYS = ["blue_miner_1"] as const;
+const VALIDATOR_KEYS = ["validator_1"] as const;
 
 interface MockServiceState {
   service:
-    | "local_chain"
     | (typeof RED_MINER_KEYS)[number]
     | (typeof BLUE_MINER_KEYS)[number]
     | (typeof VALIDATOR_KEYS)[number];
   label: string;
   status: "stopped" | "starting" | "running" | "failed";
-  launcher: "docker" | "process";
+  launcher: "process";
   scriptPath: string;
   commandLabel: string;
   launchedAt?: string;
   pid?: number;
-  containerName?: string;
-  containerId?: string;
   logPath?: string;
   lastKnownError?: string;
   debugLogTail?: string;
@@ -93,18 +74,7 @@ function createSnapshot(
   statusByKey: Partial<Record<MockServiceState["service"], MockServiceState["status"]>> = {},
   overrides: Partial<Record<MockServiceState["service"], Partial<MockServiceState>>> = {},
 ): MockSnapshot {
-  const baseSnapshot: MockSnapshot = {
-    local_chain: {
-      service: "local_chain",
-      label: "Local Chain",
-      status: statusByKey.local_chain ?? "stopped",
-      launcher: "docker",
-      scriptPath: "/tmp/chain.sh",
-      commandLabel: "docker run local_chain",
-      containerName: "local_chain",
-      ...overrides.local_chain,
-    },
-  };
+  const baseSnapshot: MockSnapshot = {};
 
   for (const [keys, baseLabel, basePath, commandLabel] of [
     [RED_MINER_KEYS, "Red Miner", "/tmp/red.sh", "red miner"],
@@ -131,16 +101,11 @@ const stoppedSnapshot: MockSnapshot = createSnapshot();
 
 const launchedSnapshot: MockSnapshot = createSnapshot(
   {
-    local_chain: "running",
     red_miner_1: "starting",
     blue_miner_1: "running",
     validator_1: "starting",
   },
   {
-    local_chain: {
-      launchedAt: "2026-03-30T10:00:00.000Z",
-      containerId: "container-1",
-    },
     red_miner_1: {
       launchedAt: "2026-03-30T10:00:01.000Z",
       pid: 4101,
@@ -180,33 +145,31 @@ const blockedLaunchResponse: MockResponsePayload = {
   preflight: {
     ready: false,
     checkedAt: "2026-03-30T10:00:00.000Z",
-    chainEndpoint: "ws://127.0.0.1:9945",
+    chainEndpoint: "wss://test.finney.opentensor.ai:443",
     netuid: 2,
     readmePath: "/Users/cavine/Code/Talos/subnet/README.md",
     blockers: [
       {
         code: "subnet_missing",
-        title: "Create subnet 2 on the local chain",
-        detail:
-          "The local chain is reachable, but subnet 2 has not been created yet.",
-        readmeStep: "Step 5",
-        commands: ["./scripts/localnet/05_create_subnet.sh"],
+        title: "Register neurons on the testnet subnet",
+        detail: "The testnet is reachable, but neurons are not registered yet.",
+        readmeStep: "Step 3",
+        commands: ["./scripts/testnet/00_register_neurons.sh"],
       },
       {
         code: "wallets_unregistered",
         title: "Register the required miners and validators",
-        detail:
-          "The required hotkeys are not registered on subnet 2, so the launch is blocked.",
-        readmeStep: "Step 8",
-        commands: ["./scripts/localnet/06_register_neurons.sh"],
+        detail: "The required hotkeys are not registered on the testnet subnet, so the launch is blocked.",
+        readmeStep: "Step 3",
+        commands: ["./scripts/testnet/00_register_neurons.sh"],
         affectedWallets: ["test-validator-1", "test-red-miner-1"],
       },
       {
         code: "validators_unstaked",
         title: "Stake the validator wallets",
         detail: "Validators need stake before the control panel can launch them.",
-        readmeStep: "Step 8",
-        commands: ["./scripts/localnet/07_stake_validators.sh"],
+        readmeStep: "Step 5",
+        commands: ["./scripts/testnet/05_stake_validators.sh"],
         affectedWallets: ["test-validator-1"],
       },
     ],
@@ -336,11 +299,10 @@ test("rehydrates service rows from GET /api/campaign/status on mount", async () 
     });
 
     const text = getTextContent(container);
-    assert.match(text, /Local Chain/);
-    assert.match(text, /Red Miner 5/);
-    assert.match(text, /Blue Miner 5/);
-    assert.match(text, /Validator 3/);
-    assert.match(text, /Services: 14 total/);
+    assert.match(text, /Red Miner 1/);
+    assert.match(text, /Blue Miner 1/);
+    assert.match(text, /Validator 1/);
+    assert.match(text, /Services: 3 total/);
     assert.deepEqual(calls, [{ url: "/api/campaign/status", method: "GET" }]);
   } finally {
     await act(async () => {
@@ -496,7 +458,7 @@ test("keeps startup polling resilient across a transient status failure and prev
   }
 });
 
-test("shows bootstrap guidance when launch is blocked by missing localnet prerequisites", async () => {
+test("shows bootstrap guidance when launch is blocked by missing testnet prerequisites", async () => {
   const { container, dom } = setupDom();
   const root: Root = createRoot(container);
   const originalFetch = globalThis.fetch;
@@ -525,12 +487,11 @@ test("shows bootstrap guidance when launch is blocked by missing localnet prereq
     assert.match(launchButton.textContent ?? "", /Launch Campaign/i);
     assert.match(text, /Launch blocked/i);
     assert.match(text, /subnet\/README\.md/i);
-    assert.match(text, /Create subnet 2 on the local chain/i);
+    assert.match(text, /Register neurons on the testnet subnet/i);
     assert.match(text, /Register the required miners and validators/i);
     assert.match(text, /Stake the validator wallets/i);
-    assert.match(text, /scripts\/localnet\/05_create_subnet\.sh/i);
-    assert.match(text, /scripts\/localnet\/06_register_neurons\.sh/i);
-    assert.match(text, /scripts\/localnet\/07_stake_validators\.sh/i);
+    assert.match(text, /scripts\/testnet\/00_register_neurons\.sh/i);
+    assert.match(text, /scripts\/testnet\/05_stake_validators\.sh/i);
     assert.match(text, /test-validator-1/i);
     assert.match(text, /test-red-miner-1/i);
     assert.deepEqual(calls, [
