@@ -10,8 +10,7 @@ from bittensor_wallet import Wallet
 
 from bittensor_network import resolve_subtensor_target
 from protocol import RoleDiscoverySynapse, BlueTeamSynapse
-from mock_data import BLUE_MINER_ACCURACY, get_mock_blue_classification
-# from shield_model import ShieldModel  # Shield implementation (commented out for mock testing)
+from shield_model import ShieldModel
 
 
 class BlueMiner:
@@ -25,25 +24,11 @@ class BlueMiner:
         self.config = self.get_config()
         self.setup_logging()
         self.setup_bittensor_objects()
-        # Shield implementation (commented out for mock testing)
-        # self.model_path = os.environ.get(
-        #     "SHIELD_MODEL_PATH",
-        #     os.path.join(os.path.dirname(__file__), "models", "shield_model"),
-        # )
-        # self.dangerous_prompts_path = os.path.join(
-        #     os.path.dirname(__file__), "dangerous_prompts.json"
-        # )
-        # self.model_poll_interval_sec = int(
-        #     os.environ.get("SHIELD_MODEL_POLL_INTERVAL_SEC", "5")
-        # )
-        # self.fine_tune_threshold = int(
-        #     os.environ.get("SHIELD_FINE_TUNE_THRESHOLD", "10")
-        # )
-        # self.seen_dangerous_prompt_keys = self._load_seen_dangerous_prompt_keys()
-        # self.shield = self._load_shield()
-
-        # Mock mode initialization
-        self.accuracy = BLUE_MINER_ACCURACY.get(self.config.miner_index, 0.5)
+        self.model_path = os.environ.get(
+            "SHIELD_MODEL_PATH",
+            os.path.join(os.path.dirname(__file__), "models", "shield_model"),
+        )
+        self.shield = self._load_shield()
 
     def get_config(self):
         # Set up the configuration parser
@@ -51,10 +36,6 @@ class BlueMiner:
         # Adds override arguments for network and netuid.
         parser.add_argument(
             "--netuid", type=int, default=1, help="The chain subnet uid."
-        )
-        # Adds miner index for mock mode accuracy lookup.
-        parser.add_argument(
-            "--miner-index", type=int, default=1, help="Miner index (1-5) for mock mode accuracy."
         )
         # Adds subtensor specific arguments.
         Subtensor.add_args(parser)
@@ -117,64 +98,11 @@ class BlueMiner:
             )
             logging.info(f"Running blue miner on uid: {self.my_subnet_uid}")
 
-    # Shield implementation (commented out for mock testing)
-    # def _load_shield(self) -> ShieldModel:
-    #     logging.info(f"Loading shield model from: {self.model_path}")
-    #     shield = ShieldModel(model_path=self.model_path)
-    #     logging.info("Shield model ready")
-    #     return shield
-
-    # Shield implementation (commented out for mock testing)
-    # def _load_seen_dangerous_prompt_keys(self) -> set[str]:
-    #     if not os.path.exists(self.dangerous_prompts_path):
-    #         return set()
-    #
-    #     with open(self.dangerous_prompts_path) as handle:
-    #         entries = json.load(handle)
-    #
-    #     return {
-    #         entry["prompt"]
-    #         for entry in entries
-    #         if isinstance(entry, dict) and entry.get("prompt")
-    #     }
-
-    # Shield implementation (commented out for mock testing)
-    # def _read_dangerous_prompts(self) -> list[str]:
-    #     if not os.path.exists(self.dangerous_prompts_path):
-    #         return []
-    #
-    #     with open(self.dangerous_prompts_path) as handle:
-    #         entries = json.load(handle)
-    #
-    #     return [
-    #         entry["prompt"]
-    #         for entry in entries
-    #         if isinstance(entry, dict) and entry.get("prompt")
-    #     ]
-
-    # Shield implementation (commented out for mock testing)
-    # def _maybe_fine_tune_shield(self):
-    #     prompts = self._read_dangerous_prompts()
-    #     new_prompts = [
-    #         prompt for prompt in prompts if prompt not in self.seen_dangerous_prompt_keys
-    #     ]
-    #     if not new_prompts:
-    #         return
-    #
-    #     if len(new_prompts) < self.fine_tune_threshold:
-    #         logging.debug(
-    #             f"Waiting for more dangerous prompts before fine-tuning "
-    #             f"({len(new_prompts)}/{self.fine_tune_threshold})"
-    #         )
-    #         return
-    #
-    #     logging.info(
-    #         f"Fine-tuning shield on {len(new_prompts)} new dangerous prompts"
-    #     )
-    #     self.shield.fine_tune_on_dangerous_prompts(new_prompts, epochs=3)
-    #     self.shield.save(self.model_path)
-    #     self.seen_dangerous_prompt_keys.update(new_prompts)
-    #     logging.info("Shield fine-tuning complete")
+    def _load_shield(self) -> ShieldModel:
+        logging.info(f"Loading shield model from: {self.model_path}")
+        shield = ShieldModel(model_path=self.model_path)
+        logging.info("Shield model ready")
+        return shield
 
     def _blacklist(self, synapse) -> Tuple[bool, str]:
         # Ignore requests from unrecognized entities.
@@ -198,12 +126,7 @@ class BlueMiner:
         return synapse
 
     def classify_prompts(self, synapse: BlueTeamSynapse) -> BlueTeamSynapse:
-        # Shield implementation (commented out for mock testing)
-        # synapse.classifications = self.shield.classify(synapse.prompts)
-        # Mock classification
-        synapse.classifications = get_mock_blue_classification(
-            accuracy=self.accuracy, prompts=synapse.prompts
-        )
+        synapse.classifications = self.shield.classify(synapse.prompts)
         logging.info(
             f"Classified {len(synapse.prompts)} prompts: {synapse.classifications}"
         )
@@ -264,9 +187,6 @@ class BlueMiner:
                 if step % 60 == 0:
                     self.metagraph.sync()
                     logging.info(self._network_status_log())
-                # Shield implementation (commented out for mock testing)
-                # if step % self.model_poll_interval_sec == 0:
-                #     self._maybe_fine_tune_shield()
                 step += 1
                 time.sleep(1)
 
