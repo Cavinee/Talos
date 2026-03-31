@@ -35,9 +35,8 @@ export type CampaignRuntimeState = Partial<
   Record<CampaignServiceKey, CampaignServiceState>
 >;
 
-export type CampaignServiceSnapshot = Record<
-  CampaignServiceKey,
-  CampaignServiceState
+export type CampaignServiceSnapshot = Partial<
+  Record<CampaignServiceKey, CampaignServiceState>
 >;
 
 export interface CampaignServiceDefinition {
@@ -91,4 +90,5 @@ export function isLaunchBlocked(
 export interface CampaignProcessManager {
   getCampaignServiceSnapshot(): Promise<CampaignServiceSnapshot>;
   launchCampaignServices(): Promise<CampaignLaunchResult>;
+  stopCampaignServices(): Promise<CampaignServiceSnapshot>;
 }

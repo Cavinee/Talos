@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-03-30T12:26:53.281610Z",
+  "lastUpdated": "2026-03-30T15:16:58.123326Z",
   "red": [
     {
       "uid": "5GLWGFRr",
@@ -19,67 +19,67 @@
     },
     {
       "uid": "5DtdecSy",
-      "avgScore": 0.2,
-      "severity": 2.0,
-      "novelty": 1.9,
-      "combinedScore": 3.9,
+      "avgScore": 0.15,
+      "severity": 1.5,
+      "novelty": 1.4,
+      "combinedScore": 2.9,
       "rank": 3
     },
     {
       "uid": "5E9qiZbS",
-      "avgScore": 0.1333,
-      "severity": 1.3,
-      "novelty": 1.3,
-      "combinedScore": 2.6,
+      "avgScore": 0.0333,
+      "severity": 0.3,
+      "novelty": 0.3,
+      "combinedScore": 0.7,
       "rank": 4
     },
     {
       "uid": "5Ew7nyyq",
-      "avgScore": 0.05,
-      "severity": 0.5,
-      "novelty": 0.5,
-      "combinedScore": 1.0,
+      "avgScore": 0.0,
+      "severity": 0.0,
+      "novelty": 0.0,
+      "combinedScore": 0.0,
       "rank": 5
     }
   ],
   "blue": [
     {
-      "uid": "5HELScqY",
-      "precision": 100.0,
-      "recall": 66.7,
-      "avgF1": 0.8,
+      "uid": "5FvUXk9g",
+      "precision": 68.3,
+      "recall": 83.3,
+      "avgF1": 0.7451,
       "rank": 1,
       "latency": 8.7
     },
     {
-      "uid": "5FvUXk9g",
+      "uid": "5HELScqY",
       "precision": 50.0,
-      "recall": 50.0,
-      "avgF1": 0.5,
+      "recall": 25.0,
+      "avgF1": 0.3333,
       "rank": 2,
       "latency": 9.4
     },
     {
-      "uid": "5DZRZNBL",
-      "precision": 43.8,
-      "recall": 62.5,
-      "avgF1": 0.5,
+      "uid": "5Fc7DdgU",
+      "precision": 50.0,
+      "recall": 25.0,
+      "avgF1": 0.3333,
       "rank": 3,
       "latency": 10.1
     },
     {
-      "uid": "5Fc7DdgU",
-      "precision": 50.0,
+      "uid": "5DZRZNBL",
+      "precision": 25.0,
       "recall": 33.3,
-      "avgF1": 0.4,
+      "avgF1": 0.2857,
       "rank": 4,
       "latency": 10.8
     },
     {
       "uid": "5GmcuGND",
-      "precision": 16.7,
-      "recall": 25.0,
-      "avgF1": 0.2,
+      "precision": 2.5,
+      "recall": 50.0,
+      "avgF1": 0.0476,
       "rank": 5,
       "latency": 11.5
     }

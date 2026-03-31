@@ -44,6 +44,8 @@ exit 0
 
 This allows the process-manager to distinguish a clean stop from a crash.
 
+Also change the script lifecycle so it stops the miner processes once all validator processes finish their scoring pass and exit cleanly, rather than waiting indefinitely for miners to end on their own.
+
 ### 2. `frontend/lib/campaign/process-manager.ts`
 
 **In `launchCampaignServices()`:**
@@ -72,7 +74,7 @@ if (!healthy && isMinerOrValidatorKey && logContains(RUN_ALL_STOP_SENTINEL)) {
 
 This runs before the existing crash-evidence check, so a clean group stop shows `"stopped"` not `"failed"`.
 
-The existing validator-specific sentinel (`"All epochs complete. Validator exiting."`) is preserved and unchanged — it handles the case where a validator finishes its epochs while the group is still running.
+The existing validator-specific sentinel (`"All epochs complete. Validator exiting."`) is preserved and unchanged in validator logs. The shared `run_all` lifecycle now exits cleanly once all validators have completed, so miners and validators all transition to `"stopped"` together after weights are assigned.
 
 ## Data Flow
 
@@ -102,14 +104,14 @@ GET /api/campaign/status
 ### Teardown
 
 - **User kills session** (Ctrl+C on run_all): `cleanup()` fires, echoes sentinel, kills all children → all 13 cards flip to `"stopped"`
-- **Validators complete epochs** while miners are still alive: `10_run_all.sh` keeps waiting on miners → all services continue showing `"running"` (correct — session is ongoing)
-- **All processes exit naturally**: `wait` returns, sentinel echoed → all 13 cards flip to `"stopped"`
+- **Validators complete epochs cleanly**: `10_run_all.sh` detects that all validator processes have exited, kills the miners, echoes the stop sentinel, and all 13 cards flip to `"stopped"`
+- **Validator exits abnormally**: `10_run_all.sh` tears down the remaining children without the clean-stop sentinel, so polling reports the shared group as failed
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `subnet/scripts/localnet/10_run_all.sh` | Add clean-exit sentinel echo in cleanup and after wait |
+| `subnet/scripts/localnet/10_run_all.sh` | Add clean-exit sentinel handling and stop miners once validators finish |
 | `frontend/lib/campaign/process-manager.ts` | Spawn 10_run_all.sh once instead of 13 individual processes; add stop sentinel check |
 
 ## Files Not Modified

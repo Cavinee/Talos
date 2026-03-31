@@ -29,7 +29,7 @@ export const CAMPAIGN_SERVICE_ORDER: CampaignServiceKey[] = [
   ...VALIDATOR_INDICES.map((index) => `validator_${index}` as const),
 ];
 
-export const DEFAULT_CAMPAIGN_SERVICE_DEFINITIONS: CampaignServiceDefinition[] = [
+const LOCALNET_SERVICE_DEFINITIONS: CampaignServiceDefinition[] = [
   {
     key: "local_chain",
     label: "Local Chain",
@@ -67,8 +67,11 @@ export const DEFAULT_CAMPAIGN_SERVICE_DEFINITIONS: CampaignServiceDefinition[] =
   })),
 ];
 
+export const DEFAULT_CAMPAIGN_SERVICE_DEFINITIONS: CampaignServiceDefinition[] =
+  LOCALNET_SERVICE_DEFINITIONS;
+
 export function createDefaultCampaignServiceSnapshot(): CampaignServiceSnapshot {
-  const snapshot = {} as CampaignServiceSnapshot;
+  const snapshot: CampaignServiceSnapshot = {};
 
   for (const definition of DEFAULT_CAMPAIGN_SERVICE_DEFINITIONS) {
     snapshot[definition.key] =

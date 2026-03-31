@@ -149,11 +149,11 @@ const snapshot: CampaignServiceSnapshot = createSnapshot();
 const startingSnapshot: CampaignServiceSnapshot = {
   ...snapshot,
   local_chain: {
-    ...snapshot.local_chain,
+    ...snapshot.local_chain!,
     status: "starting",
   },
   red_miner_1: {
-    ...snapshot.red_miner_1,
+    ...snapshot.red_miner_1!,
     status: "starting",
   },
 };

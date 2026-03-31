@@ -36,6 +36,7 @@ const DOCKER_START_POLL_INTERVAL_MS = 250;
 const DOCKER_START_MAX_POLLS = 8;
 const DEFAULT_CAMPAIGN_CHAIN_ENDPOINT =
   process.env.CHAIN_ENDPOINT?.trim() || "ws://127.0.0.1:9945";
+const RUN_ALL_SCRIPT_RELATIVE_PATH = "subnet/scripts/localnet/10_run_all.sh";
 const RUN_ALL_STOP_SENTINEL = "All miners and validators stopped.";
 const VALIDATOR_COMPLETION_SENTINEL = "All epochs complete. Validator exiting.";
 const RUN_ALL_LOG_PATH = path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, "run_all.log");
@@ -209,8 +210,8 @@ function createRunAllServiceDefinition(): ResolvedCampaignServiceDefinition {
   return {
     key: "red_miner_1",
     label: "Campaign Services",
-    scriptRelativePath: "subnet/scripts/localnet/10_run_all.sh",
-    scriptPath: path.join(repoRoot, "subnet/scripts/localnet/10_run_all.sh"),
+    scriptRelativePath: RUN_ALL_SCRIPT_RELATIVE_PATH,
+    scriptPath: path.join(repoRoot, RUN_ALL_SCRIPT_RELATIVE_PATH),
     commandLabel: "run all campaign services",
     healthCheck: "process",
     logPath: RUN_ALL_LOG_PATH,
@@ -335,7 +336,7 @@ function resolveExpectedProcessMarker(
   service: ResolvedCampaignServiceDefinition,
 ): string {
   if (normalizedState.logPath === RUN_ALL_LOG_PATH) {
-    return "10_run_all.sh";
+    return path.basename(RUN_ALL_SCRIPT_RELATIVE_PATH);
   }
 
   return path.basename(service.scriptPath);
@@ -731,6 +732,32 @@ async function inspectPersistedServiceState(
     typeof individualLogTail === "string" &&
     individualLogTail.includes(VALIDATOR_COMPLETION_SENTINEL);
 
+  // When miners become unhealthy in a shared run_all state, check if any
+  // validator has completed (set weights). If so, the miner exited normally.
+  const isMinerKey =
+    service.key.startsWith("red_miner_") ||
+    service.key.startsWith("blue_miner_");
+  const shouldCheckValidatorLogs =
+    !healthy &&
+    isMinerKey &&
+    isSharedRunAllState(normalizedState);
+  let validatorsCompleted = false;
+  if (shouldCheckValidatorLogs) {
+    const validatorLogNames = [1, 2, 3].map(
+      (i) => path.join(CAMPAIGN_RUNTIME_LOG_DIRECTORY, `validator_${i}.log`),
+    );
+    for (const logFile of validatorLogNames) {
+      const tail = await readDebugLogTail(logFile, 8, 1200);
+      if (
+        typeof tail === "string" &&
+        tail.includes(VALIDATOR_COMPLETION_SENTINEL)
+      ) {
+        validatorsCompleted = true;
+        break;
+      }
+    }
+  }
+
   if (processCommandMismatch && isSharedRunAllState(normalizedState)) {
     return {
       ...createBaseServiceState(service),
@@ -762,6 +789,15 @@ async function inspectPersistedServiceState(
       status: "stopped",
       lastKnownError: undefined,
       debugLogTail: effectiveLogTail,
+    };
+  }
+
+  if (!healthy && isMinerKey && validatorsCompleted) {
+    return {
+      ...normalizedState,
+      status: "stopped",
+      lastKnownError: undefined,
+      debugLogTail: VALIDATOR_COMPLETION_SENTINEL,
     };
   }
 
@@ -823,6 +859,54 @@ export function createCampaignProcessManager(
   let launchInFlight: Promise<void> | null = null;
 
   return {
+    async stopCampaignServices(): Promise<CampaignServiceSnapshot> {
+      await dependencies.ensureRuntimeLayout();
+      const state = await dependencies.readRuntimeState();
+      const processServices = services.filter(isMinerOrValidatorService);
+
+      const runAllPid = processServices
+        .map((s) => state[s.key]?.pid)
+        .find((pid) => pid !== undefined && isProcessAlive(pid));
+
+      if (runAllPid !== undefined) {
+        try {
+          process.kill(runAllPid, "SIGINT");
+        } catch {
+          // Process may have already exited between the check and the signal.
+        }
+      }
+
+      const localChainService = services.find(isLocalChainService);
+
+      if (
+        localChainService &&
+        state[localChainService.key]?.status === "running"
+      ) {
+        try {
+          await execFileAsync(
+            "docker",
+            ["stop", localChainService.containerName!],
+            { cwd: repoRoot },
+          );
+        } catch {
+          // Container may have already stopped.
+        }
+      }
+
+      const normalizedStates = await Promise.all(
+        services.map((service) =>
+          inspectPersistedServiceState(service, state[service.key], dependencies),
+        ),
+      );
+
+      for (const normalizedState of normalizedStates) {
+        state[normalizedState.service] = normalizedState;
+      }
+
+      await dependencies.writeRuntimeState(state);
+      return buildSnapshot(normalizedStates);
+    },
+
     async getCampaignServiceSnapshot(): Promise<CampaignServiceSnapshot> {
       await dependencies.ensureRuntimeLayout();
       const state = await dependencies.readRuntimeState();

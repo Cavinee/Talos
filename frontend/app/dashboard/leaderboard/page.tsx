@@ -24,8 +24,7 @@ export default function LeaderboardPage() {
           columns={[
             { key: "rank", label: "#" },
             { key: "uid", label: "UID" },
-            { key: "breachRate", label: "Breach Rate" },
-            { key: "weight", label: "Weight" },
+            { key: "combinedScore", label: "Breach Rate" },
           ]}
           data={data.red}
         />
@@ -37,8 +36,7 @@ export default function LeaderboardPage() {
           columns={[
             { key: "rank", label: "#" },
             { key: "uid", label: "UID" },
-            { key: "f1Score", label: "F1 Score" },
-            { key: "weight", label: "Weight" },
+            { key: "avgF1", label: "F1 Score" },
           ]}
           data={data.blue}
         />

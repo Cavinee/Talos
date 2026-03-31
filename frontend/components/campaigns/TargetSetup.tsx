@@ -64,7 +64,10 @@ const badgeLabels: Record<CampaignServiceStatus, string> = {
 };
 
 function shouldPoll(snapshot: CampaignServiceSnapshot) {
-  return Object.values(snapshot).some((service) => service.status === "starting");
+  return Object.values(snapshot).some(
+    (service) =>
+      service.status === "starting" || service.status === "running",
+  );
 }
 
 function formatServiceDetail(service: CampaignServiceState) {
@@ -74,11 +77,13 @@ function formatServiceDetail(service: CampaignServiceState) {
 
   if (service.status === "stopped") {
     if (
-      service.service.startsWith("validator_") &&
       typeof service.debugLogTail === "string" &&
       service.debugLogTail.includes(VALIDATOR_COMPLETION_SENTINEL)
     ) {
-      return "Completed — weights set";
+      if (service.service.startsWith("validator_")) {
+        return "Completed — weights set";
+      }
+      return "Completed — campaign finished";
     }
 
     return "Awaiting launch";
@@ -115,6 +120,7 @@ export default function TargetSetup({
   const [url, setUrl] = useState("");
   const [services, setServices] = useState<CampaignServiceSnapshot>(DEFAULT_SNAPSHOT);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [blockedPreflight, setBlockedPreflight] =
     useState<CampaignPreflightInfo | null>(null);
@@ -155,6 +161,8 @@ export default function TargetSetup({
 
       const prev = previous[key];
       const curr = next[key];
+
+      if (!prev || !curr) continue;
 
       const wasActive =
         prev.status === "running" || prev.status === "starting";
@@ -320,6 +328,39 @@ export default function TargetSetup({
     }
   }
 
+  async function stopCampaign() {
+    if (isStopping) return;
+
+    setIsStopping(true);
+    setRequestError(null);
+
+    try {
+      const response = await fetch("/api/campaign/stop", { method: "POST" });
+      const payload = await parseCampaignResponse(response);
+
+      if (!mountedRef.current) return;
+
+      if (payload.services) {
+        applySnapshot(payload.services);
+        return;
+      }
+
+      setRequestError(payload.error ?? "Unable to stop campaign services.");
+    } catch (error) {
+      if (!mountedRef.current) return;
+
+      setRequestError(
+        error instanceof Error
+          ? error.message
+          : "Unable to stop campaign services.",
+      );
+    } finally {
+      if (mountedRef.current) {
+        setIsStopping(false);
+      }
+    }
+  }
+
   useEffect(() => {
     mountedRef.current = true;
     void refreshStatusRef.current();
@@ -338,14 +379,14 @@ export default function TargetSetup({
             Campaign Control Panel
           </h2>
           <p className="text-text-secondary text-sm">
-            Launch the full localnet stack and monitor the chain, miners, and
-            validators from one operator console. The client API URL stays local
-            for now so we can wire the future target endpoint without altering the
-            live services.
+            Launch the full subnet stack and monitor miners and validators from
+            one operator console. The client API URL stays local for now so we
+            can wire the future target endpoint without altering the live
+            services.
           </p>
         </div>
         <div className="rounded-lg border border-border bg-base px-3 py-2 text-xs text-text-secondary">
-          Services: 14 total (1 chain, 5 red, 5 blue, 3 validators)
+          Services: {CAMPAIGN_SERVICE_ORDER.length} total
         </div>
       </div>
 
@@ -380,6 +421,18 @@ export default function TargetSetup({
                 ? "Starting Services..."
                 : "Launch Campaign"}
             </button>
+            {isStartupActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  void stopCampaign();
+                }}
+                disabled={isStopping}
+                className="bg-danger hover:bg-danger/80 disabled:bg-danger/60 disabled:cursor-wait text-white font-semibold px-6 py-2.5 rounded-lg transition-colors"
+              >
+                {isStopping ? "Stopping..." : "Terminate"}
+              </button>
+            )}
             <span className="text-xs text-text-secondary">
               Status auto-refreshes while services are active.
             </span>
@@ -461,6 +514,8 @@ export default function TargetSetup({
         <div className="grid gap-3 sm:grid-cols-2">
           {CAMPAIGN_SERVICE_ORDER.map((serviceKey) => {
             const service = services[serviceKey];
+
+            if (!service) return null;
 
             return (
               <article

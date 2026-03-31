@@ -5,10 +5,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Array to store PIDs of background processes
 declare -a PIDS=()
+declare -a VALIDATOR_PIDS=()
 
-# Function to clean up child processes on exit
-cleanup() {
+terminate_all_processes() {
+  local exit_code="${1:-0}"
+  local emit_stop_sentinel="${2:-false}"
+
   echo ""
+
+  if [[ "${emit_stop_sentinel}" == "true" ]]; then
+    echo "All miners and validators stopped."
+  fi
+
   echo "Terminating all processes..."
   for pid in "${PIDS[@]}"; do
     if kill -0 "$pid" 2>/dev/null; then
@@ -17,7 +25,12 @@ cleanup() {
   done
   wait 2>/dev/null || true
   echo "All processes terminated."
-  exit 0
+  exit "${exit_code}"
+}
+
+# Function to clean up child processes on exit
+cleanup() {
+  terminate_all_processes 0 true
 }
 
 # Set trap to catch SIGINT (Ctrl+C)
@@ -50,12 +63,35 @@ for i in {1..3}; do
   "${SCRIPT_DIR}/09_run_validator.sh" "$i" &
   pid=$!
   PIDS+=("$pid")
+  VALIDATOR_PIDS+=("$pid")
   echo "  Validator $i started (PID: $pid)"
 done
 
 echo ""
-echo "All 13 processes launched. Press Ctrl+C to terminate all."
+echo "All 13 processes launched. Waiting for validators to assign weights."
 echo ""
 
-# Wait for all background processes
-wait
+remaining_validators=("${VALIDATOR_PIDS[@]}")
+
+while ((${#remaining_validators[@]} > 0)); do
+  active_validators=()
+  for pid in "${remaining_validators[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      active_validators+=("$pid")
+      continue
+    fi
+
+    if ! wait "$pid"; then
+      echo "A validator exited before completing all epochs."
+      terminate_all_processes 1 false
+    fi
+  done
+  remaining_validators=("${active_validators[@]}")
+
+  if ((${#remaining_validators[@]} > 0)); then
+    sleep 1
+  fi
+done
+
+echo "All validators completed. Stopping miners."
+terminate_all_processes 0 true
