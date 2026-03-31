@@ -5,10 +5,6 @@ import type {
   CampaignServiceState,
 } from "./types";
 
-const RED_MINER_INDICES = [1, 2, 3, 4, 5] as const;
-const BLUE_MINER_INDICES = [1, 2, 3, 4, 5] as const;
-const VALIDATOR_INDICES = [1, 2, 3] as const;
-
 function createProcessServiceState(
   definition: CampaignServiceDefinition,
 ): CampaignServiceState {
@@ -23,64 +19,49 @@ function createProcessServiceState(
 }
 
 export const CAMPAIGN_SERVICE_ORDER: CampaignServiceKey[] = [
-  "local_chain",
-  ...RED_MINER_INDICES.map((index) => `red_miner_${index}` as const),
-  ...BLUE_MINER_INDICES.map((index) => `blue_miner_${index}` as const),
-  ...VALIDATOR_INDICES.map((index) => `validator_${index}` as const),
+  "red_miner_1",
+  "blue_miner_1",
+  "validator_1",
 ];
 
-const LOCALNET_SERVICE_DEFINITIONS: CampaignServiceDefinition[] = [
+const TESTNET_SERVICE_DEFINITIONS: CampaignServiceDefinition[] = [
   {
-    key: "local_chain",
-    label: "Local Chain",
-    scriptRelativePath: "subnet/scripts/localnet/02_start_chain.sh",
-    commandLabel: "docker run local_chain",
-    healthCheck: "docker",
-    containerName: "local_chain",
+    key: "red_miner_1",
+    label: "Red Miner 1",
+    scriptRelativePath: "subnet/scripts/testnet/01_run_red_miner.sh",
+    commandLabel: "red miner 1",
+    healthCheck: "process",
+    launchArguments: ["1"],
+    logFileName: "red_miner_1.log",
   },
-  ...RED_MINER_INDICES.map((index) => ({
-    key: `red_miner_${index}` as const,
-    label: `Red Miner ${index}`,
-    scriptRelativePath: "subnet/scripts/localnet/07_run_red_miner.sh",
-    commandLabel: `red miner ${index}`,
-    healthCheck: "process" as const,
-    launchArguments: [`${index}`],
-    logFileName: `red_miner_${index}.log`,
-  })),
-  ...BLUE_MINER_INDICES.map((index) => ({
-    key: `blue_miner_${index}` as const,
-    label: `Blue Miner ${index}`,
-    scriptRelativePath: "subnet/scripts/localnet/08_run_blue_miner.sh",
-    commandLabel: `blue miner ${index}`,
-    healthCheck: "process" as const,
-    launchArguments: [`${index}`],
-    logFileName: `blue_miner_${index}.log`,
-  })),
-  ...VALIDATOR_INDICES.map((index) => ({
-    key: `validator_${index}` as const,
-    label: `Validator ${index}`,
-    scriptRelativePath: "subnet/scripts/localnet/09_run_validator.sh",
-    commandLabel: `validator ${index}`,
-    healthCheck: "process" as const,
-    launchArguments: [`${index}`],
-    logFileName: `validator_${index}.log`,
-  })),
+  {
+    key: "blue_miner_1",
+    label: "Blue Miner 1",
+    scriptRelativePath: "subnet/scripts/testnet/02_run_blue_miner.sh",
+    commandLabel: "blue miner 1",
+    healthCheck: "process",
+    launchArguments: ["1"],
+    logFileName: "blue_miner_1.log",
+  },
+  {
+    key: "validator_1",
+    label: "Validator 1",
+    scriptRelativePath: "subnet/scripts/testnet/03_run_validator.sh",
+    commandLabel: "validator 1",
+    healthCheck: "process",
+    launchArguments: ["1"],
+    logFileName: "validator_1.log",
+  },
 ];
 
 export const DEFAULT_CAMPAIGN_SERVICE_DEFINITIONS: CampaignServiceDefinition[] =
-  LOCALNET_SERVICE_DEFINITIONS;
+  TESTNET_SERVICE_DEFINITIONS;
 
 export function createDefaultCampaignServiceSnapshot(): CampaignServiceSnapshot {
   const snapshot: CampaignServiceSnapshot = {};
 
   for (const definition of DEFAULT_CAMPAIGN_SERVICE_DEFINITIONS) {
-    snapshot[definition.key] =
-      definition.healthCheck === "docker"
-        ? {
-            ...createProcessServiceState(definition),
-            containerName: definition.containerName,
-          }
-        : createProcessServiceState(definition);
+    snapshot[definition.key] = createProcessServiceState(definition);
   }
 
   return snapshot;
