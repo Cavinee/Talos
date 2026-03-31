@@ -2,6 +2,20 @@
 
 Adversarial prompt-injection testing on Bittensor. A red miner generates injection prompts, a blue miner classifies them, and a validator scores both and sets weights on-chain.
 
+## Screenshots
+
+### Threat Dashboard
+
+![Threat Dashboard](frontend/public/images/threat-dashboard.png)
+
+### Campaign Operations
+
+![Campaign Operations](frontend/public/images/campaign-operations.png)
+
+### Testnet Subnet Overview
+
+![Testnet Subnet Overview](frontend/public/images/subnet-table.png)
+
 ## Project Structure
 
 ```text
