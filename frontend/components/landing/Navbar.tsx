@@ -41,12 +41,6 @@ export default function Navbar() {
             Network
           </span>
           <Link
-            href="/dashboard/integrations"
-            className="text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
-          >
-            Docs
-          </Link>
-          <Link
             href="/dashboard"
             className="bg-accent hover:bg-accent-light text-base font-semibold px-5 py-2 rounded-lg transition-colors"
           >

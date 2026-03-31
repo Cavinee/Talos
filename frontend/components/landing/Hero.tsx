@@ -39,12 +39,6 @@ export default function Hero() {
             >
               Launch Dashboard
             </Link>
-            <Link
-              href="/dashboard/integrations"
-              className="border border-accent text-accent hover:bg-accent/10 font-semibold px-8 py-3 rounded-lg transition-colors"
-            >
-              Read Docs
-            </Link>
           </div>
         </motion.div>
 
