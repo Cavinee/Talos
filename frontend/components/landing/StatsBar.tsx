@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { landingStats } from "@/data/mock";
 
 function parseStatValue(value: string): { prefix: string; target: number; suffix: string; useComma: boolean } {
-  if (value === "50,000+") return { prefix: "", target: 50000, suffix: "+", useComma: true };
-  if (value === "256") return { prefix: "", target: 256, suffix: "", useComma: false };
+  if (value === "1,200+") return { prefix: "", target: 1200, suffix: "+", useComma: true };
+  if (value === "3") return { prefix: "", target: 3, suffix: "", useComma: false };
   if (value === "<12ms") return { prefix: "<", target: 12, suffix: "ms", useComma: false };
   return { prefix: "", target: 0, suffix: "", useComma: false };
 }
