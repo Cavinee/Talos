@@ -10,10 +10,10 @@ export default function CampaignsPage() {
         </p>
         <div className="max-w-3xl">
           <h1 className="text-text-primary text-3xl font-semibold">
-            Launch and monitor the localnet campaign stack
+            Launch and monitor the testnet campaign stack
           </h1>
           <p className="text-text-secondary text-sm mt-2">
-            Bring the local chain, miners, and validator online from a single page,
+            Bring miners and the validator online from a single page,
             then watch their live status rehydrate after refreshes and launch cycles.
           </p>
         </div>

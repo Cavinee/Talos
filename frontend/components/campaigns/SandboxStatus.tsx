@@ -4,12 +4,8 @@ import React from "react";
 
 const serviceNotes = [
   {
-    title: "Local Chain",
-    description: "Docker-backed chain service used as the base localnet.",
-  },
-  {
     title: "Red and Blue Miners",
-    description: "Detached miner processes launched from the localnet scripts.",
+    description: "Detached miner processes launched from the testnet scripts.",
   },
   {
     title: "Validator",
@@ -27,11 +23,11 @@ export default function SandboxStatus() {
         <p className="text-text-secondary text-sm">
           The live service panel above now reflects the real campaign runtime. Use
           these notes as a quick reference for what each service represents while the
-          localnet is starting or recovering from failures.
+          testnet services are starting or recovering from failures.
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2">
         {serviceNotes.map((note) => (
           <article key={note.title} className="rounded-lg border border-border bg-base p-4">
             <h3 className="text-text-primary text-sm font-semibold">{note.title}</h3>

@@ -469,14 +469,14 @@ export default function TargetSetup({
           {blockedPreflight ? (
             <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-4 space-y-3">
               <p className="text-sm font-semibold text-warning">
-                Launch blocked — complete the localnet bootstrap first
+                Launch blocked — complete the testnet bootstrap first
               </p>
               <p className="text-xs text-text-secondary">
                 Follow the steps in{" "}
                 <code className="text-text-primary">
                   {blockedPreflight.readmePath.replace(/^.*?(subnet\/README\.md)$/, "$1")}
                 </code>{" "}
-                to prepare the local chain before launching.
+                to prepare the testnet before launching.
               </p>
               <ul className="space-y-3">
                 {blockedPreflight.blockers.map((blocker) => (
